@@ -26,6 +26,7 @@ import { pool } from './db/pool.js';
 import { computeSaleState } from './services/sale.js';
 import { stockCache } from './cache/stockCache.js';
 import { registerPurchaseRoute } from './routes/purchase.js';
+import { registerEventsRoute } from './routes/events.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // dist layout mirrors src, so a co-located dist/db/schema.sql wins when the
@@ -133,8 +134,17 @@ export async function buildApp(rateLimitBuy: number) {
       return;
     }
     const status = err.statusCode !== undefined && err.statusCode >= 400 ? err.statusCode : 500;
-    const message = status === 500 ? 'Internal server error' : (err.message ?? 'Request failed');
-    void reply.code(status).send(envelope(status === 500 ? 'internal-error' : 'request-failed', message));
+    // Align every fallback body to the canonical code set:
+    // 404 -> not-found, other 4xx -> bad-request, 5xx -> internal-error.
+    if (status === 404) {
+      void reply.code(404).send(envelope('not-found', err.message ?? 'Route not found'));
+      return;
+    }
+    if (status >= 400 && status < 500) {
+      void reply.code(status).send(envelope('bad-request', err.message ?? 'Bad request'));
+      return;
+    }
+    void reply.code(500).send(envelope('internal-error', 'Internal server error'));
   });
 
   app.setNotFoundHandler((_req, reply) => {
@@ -204,11 +214,7 @@ export async function buildApp(rateLimitBuy: number) {
     })();
   });
 
-  app.get('/api/sale/events', (_req, reply) => {
-    void reply
-      .code(501)
-      .send(envelope('not-implemented', 'GET /api/sale/events not yet implemented'));
-  });
+  await registerEventsRoute(app);
 
   await registerPurchaseRoute(app, rateLimitBuy);
 
