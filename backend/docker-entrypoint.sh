@@ -1,8 +1,8 @@
 #!/bin/sh
-# Todo 2 placeholder entrypoint — Todo 4 replaces with seed + listen.
-# Waits for postgres with retry/backoff and NEVER crash-loops: if the
-# skeleton (src/index.js) is absent the container holds alive while watching
-# DB reachability, so `docker compose stop postgres` shows retry logs.
+# Todo 4 entrypoint: wait for postgres (retry/backoff, no crash-loop),
+# then exec the BUILT output. dist/index.js is primary (Dockerfile runs
+# `npm run build --workspace=backend`); src/index.js kept only as a
+# dev-mode fallback note — compose always ships the built bundle.
 set -u
 
 echo "[entrypoint] waiting for postgres (DATABASE_URL=${DATABASE_URL:-unset})..."
@@ -17,26 +17,16 @@ while ! node /app/backend/wait-for-db.mjs; do
 done
 echo "[entrypoint] postgres reachable"
 
-if [ -f /app/backend/src/index.js ]; then
-  echo "[entrypoint] starting backend"
-  exec node src/index.js
-else
-  echo "[entrypoint] src/index.js absent (Todo 4 skeleton pending) - watching DB, holding container alive"
-  delay=1
-  was_down=false
-  while true; do
-    if node /app/backend/wait-for-db.mjs 2>/dev/null; then
-      if [ "${was_down}" = true ]; then
-        echo "[entrypoint] postgres reachable again (recovered, no restart needed)"
-      fi
-      was_down=false
-      delay=1
-    else
-      echo "[entrypoint] postgres unreachable, retrying in ${delay}s (backoff, no crash-loop)"
-      was_down=true
-      delay=$((delay * 2))
-      if [ "${delay}" -gt 10 ]; then delay=10; fi
-    fi
-    sleep "${delay}"
-  done
+if [ -f /app/backend/dist/index.js ]; then
+  echo "[entrypoint] starting backend (dist/index.js)"
+  cd /app/backend && exec node dist/index.js
 fi
+
+# Fallback (dev only): type-strip the TS sources directly on Node 26.
+if [ -f /app/backend/src/index.ts ]; then
+  echo "[entrypoint] dist/index.js missing - falling back to src/index.ts (type-stripping dev mode)"
+  cd /app/backend && exec node --experimental-strip-types src/index.ts
+fi
+
+echo "[entrypoint] no backend bundle found (need dist/index.js or src/index.ts)"
+exit 1
