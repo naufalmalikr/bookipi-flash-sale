@@ -141,3 +141,9 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# Development
+.omo
+
+# k6 raw results (hundreds of MB; summary committed as stress/results-summary.json)
+stress/results.json

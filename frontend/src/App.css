@@ -1,0 +1,99 @@
+/* Todo 10: plain CSS, no UI framework. */
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #101418;
+  color: #eef2f5;
+}
+
+.page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: 32px 16px 64px;
+}
+
+h1 {
+  font-size: 28px;
+  margin: 0 0 20px;
+}
+
+.panel {
+  background: #1a2129;
+  border: 1px solid #2b3540;
+  border-radius: 10px;
+  padding: 18px;
+  margin-bottom: 16px;
+}
+
+.row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.pill {
+  display: inline-block;
+  padding: 4px 14px;
+  border-radius: 999px;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+}
+
+.pill-upcoming { background: #3a3f1e; color: #f3e38b; }
+.pill-active { background: #144d2a; color: #8df0ae; }
+.pill-ended { background: #54201f; color: #f5a3a3; }
+.pill-unknown { background: #333c46; color: #b9c4cf; }
+
+.feed { font-size: 12px; color: #93a1ae; }
+.feed-live-sse { color: #8df0ae; }
+.feed-polling { color: #f3e38b; }
+
+.stock { font-size: 30px; font-weight: 800; margin: 12px 0 4px; }
+.countdown { font-size: 16px; color: #c7d2dc; }
+.load-error { margin-top: 8px; color: #f5a3a3; font-size: 13px; }
+.times { margin-top: 10px; font-size: 12px; color: #93a1ae; }
+
+form { display: flex; flex-direction: column; gap: 10px; }
+label { font-size: 14px; font-weight: 600; }
+input[type="email"] {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid #2b3540;
+  background: #101418;
+  color: inherit;
+  font-size: 15px;
+}
+button {
+  padding: 11px 14px;
+  border-radius: 8px;
+  border: none;
+  background: #2f7cf6;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+button:disabled { opacity: 0.6; cursor: wait; }
+
+.result {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  font-size: 14px;
+  border: 1px solid #2b3540;
+}
+.result .code { font-weight: 800; margin-right: 6px; }
+.alert-success { background: #144d2a; border-color: #2c7a47; }
+.alert-repeat { background: #3f3a17; border-color: #8a7d2c; }
+.alert-soldout { background: #54201f; border-color: #8f3b3a; }
+.alert-inactive { background: #43301a; border-color: #8a622c; }
+.alert-invalid { background: #4a2340; border-color: #8a4a7d; }
+.alert-rate { background: #3a2b55; border-color: #6d54a8; }
+.alert-notpurchased { background: #2b3540; border-color: #55636f; }
+.alert-error { background: #333c46; border-color: #6b7885; }
