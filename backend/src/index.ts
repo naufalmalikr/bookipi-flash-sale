@@ -229,7 +229,12 @@ async function migrateAndSeed(saleStart: string, saleEnd: string): Promise<void>
   let stockQty = 100;
   if (stockQtyRaw !== undefined && stockQtyRaw !== '') {
     const parsed = Number.parseInt(stockQtyRaw, 10);
-    if (Number.isInteger(parsed) && parsed > 0) stockQty = parsed;
+    if (Number.isInteger(parsed) && parsed > 0) {
+      stockQty = parsed;
+    } else {
+      console.error(`[boot] 500 invalid STOCK_QTY=${JSON.stringify(stockQtyRaw)} (must be a positive integer)`);
+      process.exit(1);
+    }
   }
   const product: string = process.env['SALE_PRODUCT'] ?? 'Bookipi Flash Widget';
 

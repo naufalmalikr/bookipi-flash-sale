@@ -153,6 +153,18 @@ export async function registerEventsRoute(app: FastifyInstance): Promise<void> {
       const logInfo = (msg: string): void => {
         req.log.info(msg);
       };
+      // Initial payload is built BEFORE headers: a DB failure on connect
+      // must 500 (so the client can react) instead of an empty 200 stream.
+      let initial: StatusPayload;
+      try {
+        initial = await buildStatusPayload();
+      } catch {
+        void reply.code(500).send({
+          error: 'internal-error',
+          message: 'Failed to load sale status',
+        });
+        return;
+      }
       reply.hijack();
       const raw: ServerResponse = reply.raw;
       raw.writeHead(200, {
@@ -160,15 +172,8 @@ export async function registerEventsRoute(app: FastifyInstance): Promise<void> {
         'Cache-Control': 'no-cache',
         Connection: 'keep-alive',
       });
-      // Initial `event: status` immediately so clients never wait for a tick.
-      try {
-        const initial = await buildStatusPayload();
-        lastStatus = initial.status;
-        raw.write(formatStatus(initial));
-      } catch {
-        raw.end();
-        return;
-      }
+      lastStatus = initial.status;
+      raw.write(formatStatus(initial));
       clients.add(raw);
       ensureTimers(logInfo);
       req.raw.on('close', () => {

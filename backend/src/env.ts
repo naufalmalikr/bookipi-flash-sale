@@ -51,6 +51,8 @@ export function loadBootEnv(): BootEnv {
     const parsed = Number.parseInt(portRaw, 10);
     if (Number.isInteger(parsed) && parsed > 0 && parsed < 65536) {
       port = parsed;
+    } else {
+      console.warn(`[boot] invalid PORT=${JSON.stringify(portRaw)} (must be 1-65535), falling back to 3001`);
     }
   }
 
@@ -63,6 +65,8 @@ export function loadBootEnv(): BootEnv {
     // input falls back to the default 10.
     if (Number.isInteger(parsed) && parsed >= 0) {
       rateLimitBuy = parsed;
+    } else {
+      console.warn(`[boot] invalid RATE_LIMIT_BUY=${JSON.stringify(rlRaw)} (must be an integer >= 0), falling back to 10`);
     }
   }
 

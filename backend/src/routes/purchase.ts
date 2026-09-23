@@ -35,8 +35,10 @@ import { getSaleState, computeSaleState } from '../services/sale.js';
 import { canonicalizeUserId } from '../utils/canonicalize.js';
 import { invalidateStockCache } from '../cache/stockCache.js';
 
-/** Zod body: mirrors the skeleton stub (invalid -> 400 invalid-userId). */
-export const purchaseBodySchema = z.object({ userId: z.email() });
+/** Zod body: trims padding then validates email (invalid -> 400 invalid-userId). */
+export const purchaseBodySchema = z.object({
+  userId: z.string().trim().pipe(z.email()),
+});
 
 export interface PurchaseCommittedEvent {
   unitId: number;

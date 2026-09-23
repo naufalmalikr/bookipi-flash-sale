@@ -15,8 +15,8 @@
  */
 import { z } from 'zod';
 
-/** Zod email schema feeding the purchase path (mirrors index.ts purchaseBody). */
-export const userIdSchema = z.email();
+/** Zod email schema feeding the purchase path (mirrors purchaseBodySchema). */
+export const userIdSchema = z.string().trim().pipe(z.email());
 
 const GMAIL_DOMAINS = new Set(['gmail.com', 'googlemail.com']);
 

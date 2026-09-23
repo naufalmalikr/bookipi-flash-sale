@@ -46,10 +46,13 @@ describe('canonicalizeUserId', () => {
     }
   });
 
-  it('Zod userIdSchema rejects empty/whitespace/non-email (purchase-path 400 source)', () => {
+  it('Zod userIdSchema trims padding, rejects empty/whitespace/non-email (purchase-path 400 source)', () => {
     for (const input of ['', '   ', 'not-an-email']) {
       expect(userIdSchema.safeParse(input).success).toBe(false);
     }
     expect(userIdSchema.safeParse('foobar@gmail.com').success).toBe(true);
+    const padded = userIdSchema.safeParse('  FooBar@GMAIL.com  ');
+    expect(padded.success).toBe(true);
+    if (padded.success) expect(padded.data).toBe('FooBar@GMAIL.com'.trim());
   });
 });

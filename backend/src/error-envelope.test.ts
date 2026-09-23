@@ -124,9 +124,9 @@ describe('error-code mapping table (pure-unit, DB paths owned by Todo 13)', () =
   });
 
   it('400 invalid-userId trigger: canonicalizeUserId throws on Zod-passing-but-bad edge input', () => {
-    // Zod email() lets some shapes through that canonicalize rejects
-    // (e.g. padded input would trim, but schema already rejected it; the
-    // route catch maps ANY throw -> 400 invalid-userId identically).
+    // The route catch maps ANY canonicalize throw -> 400 invalid-userId
+    // identically (whitespace-only / double-@ never survive the schema
+    // trim+email pipe either; both stay 400).
     expect(() => canonicalizeUserId('   ')).toThrowError('invalid-userId');
     expect(() => canonicalizeUserId('foo@@gmail.com')).toThrowError('invalid-userId');
   });
