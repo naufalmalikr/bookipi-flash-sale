@@ -23,6 +23,7 @@ import rateLimit from '@fastify/rate-limit';
 import { z } from 'zod';
 import { loadBootEnv } from './env.js';
 import { pool } from './db/pool.js';
+import { computeSaleState } from './services/sale.js';
 import { stockCache, invalidateStockCache } from './cache/stockCache.js';
 // Todo 7 hook: call invalidateStockCache() after every purchase-commit.
 // Referenced here so the import stays live until the claim path lands.
@@ -168,12 +169,11 @@ export async function buildApp(rateLimitBuy: number) {
         const startsAt = row.starts_at.toISOString();
         const endsAt = row.ends_at.toISOString();
         const serverTime = new Date(nowMs).toISOString();
-        const status =
-          nowMs < row.starts_at.getTime()
-            ? 'upcoming'
-            : nowMs > row.ends_at.getTime()
-              ? 'ended'
-              : 'active';
+        const { status } = computeSaleState(
+          row.starts_at.getTime(),
+          row.ends_at.getTime(),
+          nowMs,
+        );
         const totalStock = row.stock_qty;
 
         const hit = stockCache.getStatus();
