@@ -58,7 +58,10 @@ export function loadBootEnv(): BootEnv {
   let rateLimitBuy = 10;
   if (rlRaw !== undefined && rlRaw !== '') {
     const parsed = Number.parseInt(rlRaw, 10);
-    if (Number.isInteger(parsed) && parsed > 0) {
+    // 0 (or negative) DISABLES the buy rate limit entirely — load-test switch
+    // (Todo 14 k6 proof). Positive integers set max req/min/IP. Non-numeric
+    // input falls back to the default 10.
+    if (Number.isInteger(parsed) && parsed >= 0) {
       rateLimitBuy = parsed;
     }
   }

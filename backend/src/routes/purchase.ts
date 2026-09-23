@@ -112,12 +112,19 @@ export async function registerPurchaseRoute(
     })();
   });
 
+  // rateLimitBuy <= 0 DISABLES per-route rate limiting (Todo 14 k6 load
+  // switch; single route-options object keeps the claim handler untouched).
+  const buyRouteOptions =
+    rateLimitBuy > 0
+      ? {
+          schema: { body: purchaseBodySchema },
+          config: { rateLimit: { max: rateLimitBuy, timeWindow: '1 minute' } },
+        }
+      : { schema: { body: purchaseBodySchema } };
+
   app.post(
     '/api/purchase',
-    {
-      schema: { body: purchaseBodySchema },
-      config: { rateLimit: { max: rateLimitBuy, timeWindow: '1 minute' } },
-    },
+    buyRouteOptions,
     (req, reply) => {
       void (async () => {
         const rawUserId = (req.body as { userId: string }).userId;
