@@ -218,12 +218,6 @@ export async function buildApp(rateLimitBuy: number) {
 
   await registerPurchaseRoute(app, rateLimitBuy);
 
-  app.get('/api/purchase/:userId', (_req, reply) => {
-    void reply
-      .code(501)
-      .send(envelope('not-implemented', 'GET /api/purchase/:userId not yet implemented'));
-  });
-
   return app;
 }
 

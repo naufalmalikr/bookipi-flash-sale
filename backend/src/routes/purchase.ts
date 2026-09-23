@@ -76,6 +76,42 @@ export async function registerPurchaseRoute(
   app: FastifyInstance,
   rateLimitBuy: number,
 ): Promise<void> {
+  app.get('/api/purchase/:userId', (req, reply) => {
+    void (async () => {
+      const raw = (req.params as { userId: string }).userId;
+
+      let canonical: string;
+      try {
+        canonical = canonicalizeUserId(raw);
+      } catch {
+        void reply
+          .code(400)
+          .send({ error: 'invalid-userId', message: 'Param must be a valid email userId' });
+        return;
+      }
+
+      try {
+        const found = await pool.query<{ unit_id: number }>(
+          `SELECT unit_id FROM purchases
+            WHERE sale_id = 1 AND canonical_user_id = $1 LIMIT 1`,
+          [canonical],
+        );
+        const row = found.rows[0];
+        if (row === undefined) {
+          void reply
+            .code(404)
+            .send({ error: 'not-purchased', message: 'This user has not purchased' });
+          return;
+        }
+        void reply.code(200).send({ result: 'purchased', unitId: row.unit_id });
+      } catch {
+        void reply
+          .code(500)
+          .send({ error: 'internal-error', message: 'Failed to check purchase' });
+      }
+    })();
+  });
+
   app.post(
     '/api/purchase',
     {
