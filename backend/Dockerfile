@@ -1,0 +1,10 @@
+FROM node:26.10.0-alpine
+WORKDIR /app
+COPY package.json package-lock.json* ./
+COPY backend/package.json ./backend/
+RUN npm ci --workspace=backend --include-workspace-root=false || npm install --workspace=backend
+COPY backend/ ./backend/
+WORKDIR /app/backend
+EXPOSE 3001
+HEALTHCHECK --interval=10s --timeout=3s --retries=3 CMD wget -qO- http://localhost:3001/health || exit 1
+CMD ["node", "src/index.js"]
