@@ -10,8 +10,9 @@
  *   `canonicalizeUserId` normalizes them; the schema only gates shape).
  * - No length cap on well-formed addresses (300-char local part passes);
  *   safe because `purchases.raw_user_id` / `canonical_user_id` are TEXT.
- * - Leading/trailing whitespace is REJECTED (no auto-trim), so padded input
- *   400s before `canonicalizeUserId`'s trim() ever runs.
+ * - Leading/trailing whitespace is TRIMMED then validated, so padded input
+ *   succeeds with the trimmed address (matches `canonicalizeUserId` trim and
+ *   the frontend UX trim).
  * - Unknown extra keys are stripped but still valid (Zod default object).
  */
 import { describe, it, expect } from 'vitest';
@@ -59,8 +60,10 @@ describe('purchaseBodySchema invalid vectors', () => {
     }
   });
 
-  it('rejects padded email (no auto-trim at schema layer)', () => {
-    expect(purchaseBodySchema.safeParse({ userId: '  a@b.com  ' }).success).toBe(false);
+  it('trims padded email (trim-then-validate at schema layer)', () => {
+    const parsed = purchaseBodySchema.safeParse({ userId: '  a@b.com  ' });
+    expect(parsed.success).toBe(true);
+    if (parsed.success) expect(parsed.data.userId).toBe('a@b.com');
   });
 
   it('rejects whitespace inside the address', () => {

@@ -2,8 +2,10 @@
  * Idempotent flash-sale seed (Todo 3).
  *
  * - Upserts one sale_config row (id = 1) from env.
- * - Tops up stock_units to exactly STOCK_QTY total rows (available + sold).
- *   Re-runs insert 0 rows; a smaller STOCK_QTY never deletes/shrinks.
+ * - Converges stock_units to exactly STOCK_QTY total rows: tops up when
+ *   short, deletes surplus `available` rows (newest first) when over.
+ *   Sold rows are never deleted; if sold already exceeds STOCK_QTY a
+ *   warning is logged and the denominator diverges (ops signal).
  * - JS-compatible TS: only erasable type syntax, runs under
  *   `node backend/src/db/seed.ts` (Node >= 22.6 type stripping).
  *
@@ -56,8 +58,25 @@ try {
   );
   console.log(`[seed] sale_config upserted: ${JSON.stringify(upsert.rows[0])}`);
 
+  // Converge to STOCK_QTY: delete surplus `available` rows (newest first),
+  // then top up when short. Sold rows are never deleted.
+  const shrunk = await client.query(
+    `WITH sold AS (
+       SELECT COUNT(*)::int AS n FROM stock_units
+       WHERE sale_id = 1 AND status = 'sold'
+     ),
+     ranked AS (
+       SELECT id, ROW_NUMBER() OVER (ORDER BY id DESC) AS rn FROM stock_units
+       WHERE sale_id = 1 AND status = 'available'
+     )
+     DELETE FROM stock_units WHERE id IN (
+       SELECT ranked.id FROM ranked, sold
+       WHERE ranked.rn > GREATEST($1 - sold.n, 0)
+     ) RETURNING id`,
+    [STOCK_QTY],
+  );
+
   // Top up to STOCK_QTY total unit rows without touching existing rows
-  // (sold rows are never deleted; a smaller STOCK_QTY inserts 0).
   const topped = await client.query(
     `INSERT INTO stock_units (sale_id, status)
      SELECT 1, 'available'
@@ -76,7 +95,13 @@ try {
        COUNT(*) FILTER (WHERE status = 'sold')::int AS sold
      FROM stock_units WHERE sale_id = 1`,
   );
-  console.log(`[seed] stock_units inserted=${topped.rowCount} counts=${JSON.stringify(counts.rows[0])}`);
+  const tally = counts.rows[0] as { total: number; available: number; sold: number };
+  if (tally.total !== STOCK_QTY) {
+    console.warn(
+      `[seed] stock diverge: STOCK_QTY=${String(STOCK_QTY)} but stock_units rows=${String(tally.total)} (sold=${String(tally.sold)}); status totalStock will disagree with reality`,
+    );
+  }
+  console.log(`[seed] stock_units deleted=${shrunk.rowCount} inserted=${topped.rowCount} counts=${JSON.stringify(counts.rows[0])}`);
 } finally {
   await client.end();
 }

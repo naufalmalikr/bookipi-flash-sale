@@ -15,6 +15,10 @@ if (poolMaxRaw !== undefined && poolMaxRaw !== '') {
   const parsed = Number.parseInt(poolMaxRaw, 10);
   if (Number.isInteger(parsed) && parsed > 0) {
     poolMax = parsed;
+  } else {
+    console.warn(
+      `[boot] invalid PG_POOL_MAX=${JSON.stringify(poolMaxRaw)} (must be a positive integer), falling back to 50`,
+    );
   }
 }
 

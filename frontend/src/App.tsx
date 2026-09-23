@@ -200,25 +200,37 @@ export default function App(): React.JSX.Element {
     try {
       const post = await postPurchase(userId);
       if (post.ok) {
-        const confirm = await getPurchase(userId);
-        if (confirm.ok) {
-          setAlert({
-            code: 'purchased',
-            message: `Secured unit #${String(confirm.body.unitId)} (confirmed)`,
-            tone: toneFor('purchased'),
-          });
-        } else {
-          // Confirm returned a server error envelope — render verbatim.
-          setAlert({ code: confirm.error, message: confirm.message, tone: toneFor(confirm.error) });
-        }
-        try {
-          const s = await getStatus();
-          setPayload(s);
-          const parsed = Date.parse(s.serverTime);
-          if (!Number.isNaN(parsed)) clockOffset.current = Date.now() - parsed;
-        } catch {
-          // Status refresh is best-effort; SSE/poll will catch up.
-        }
+        // Success renders from the POST body: the unit is already consumed,
+        // so a transient confirm/status failure must never mask it. Both
+        // follow-ups are best-effort background refreshes only.
+        const unitId = post.body.unitId;
+        setAlert({
+          code: 'purchased',
+          message: `Secured unit #${String(unitId)}`,
+          tone: toneFor('purchased'),
+        });
+        void (async () => {
+          try {
+            const confirm = await getPurchase(userId);
+            if (confirm.ok && confirm.body.unitId !== unitId) {
+              setAlert({
+                code: 'purchased',
+                message: `Secured unit #${String(unitId)} (lookup shows #${String(confirm.body.unitId)})`,
+                tone: toneFor('purchased'),
+              });
+            }
+          } catch {
+            // Confirm is advisory; the POST 201 above is the source of truth.
+          }
+          try {
+            const s = await getStatus();
+            setPayload(s);
+            const parsed = Date.parse(s.serverTime);
+            if (!Number.isNaN(parsed)) clockOffset.current = Date.now() - parsed;
+          } catch {
+            // Status refresh is best-effort; SSE/poll will catch up.
+          }
+        })();
       } else {
         // Server error code rendered verbatim with distinct styling.
         setAlert({ code: post.error, message: post.message, tone: toneFor(post.error) });

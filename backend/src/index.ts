@@ -11,7 +11,7 @@
  * - Uniform JSON error envelope {error, message}: 404 via setNotFoundHandler,
  *   malformed JSON -> 400 (never 500).
  * - Boot: validate env (UTC Z-only, 500-at-boot + exit(1) on violation),
- *   run schema.sql then seed logic (sale_config upsert + unit top-up),
+ *   run schema.sql then seed logic (sale_config upsert + unit top-up/shrink),
  *   listen 0.0.0.0:PORT.
  */
 import { readFile } from 'node:fs/promises';
@@ -229,7 +229,12 @@ async function migrateAndSeed(saleStart: string, saleEnd: string): Promise<void>
   let stockQty = 100;
   if (stockQtyRaw !== undefined && stockQtyRaw !== '') {
     const parsed = Number.parseInt(stockQtyRaw, 10);
-    if (Number.isInteger(parsed) && parsed > 0) stockQty = parsed;
+    if (Number.isInteger(parsed) && parsed > 0) {
+      stockQty = parsed;
+    } else {
+      console.error(`[boot] 500 invalid STOCK_QTY=${JSON.stringify(stockQtyRaw)} (must be a positive integer)`);
+      process.exit(1);
+    }
   }
   const product: string = process.env['SALE_PRODUCT'] ?? 'Bookipi Flash Widget';
 
@@ -244,6 +249,26 @@ async function migrateAndSeed(saleStart: string, saleEnd: string): Promise<void>
      RETURNING id, stock_qty`,
     [product, stockQty, saleStart, saleEnd],
   );
+  const row = upsert.rows[0];
+  // Shrink path: a reboot with a smaller STOCK_QTY deletes surplus
+  // `available` rows (newest first) so COUNT(*) agrees with sale_config.
+  // Sold rows are never deleted; if sold already exceeds the new qty the
+  // denominator diverges and the warn below fires (ops signal, not silent).
+  const shrink = await pool.query<{ id: number }>(
+    `WITH sold AS (
+       SELECT COUNT(*)::int AS n FROM stock_units
+       WHERE sale_id = 1 AND status = 'sold'
+     ),
+     ranked AS (
+       SELECT id, ROW_NUMBER() OVER (ORDER BY id DESC) AS rn FROM stock_units
+       WHERE sale_id = 1 AND status = 'available'
+     )
+     DELETE FROM stock_units WHERE id IN (
+       SELECT ranked.id FROM ranked, sold
+       WHERE ranked.rn > GREATEST($1 - sold.n, 0)
+     ) RETURNING id`,
+    [stockQty],
+  );
   const topped = await pool.query<{ id: number }>(
     `INSERT INTO stock_units (sale_id, status)
      SELECT 1, 'available'
@@ -254,9 +279,19 @@ async function migrateAndSeed(saleStart: string, saleEnd: string): Promise<void>
      RETURNING id`,
     [stockQty],
   );
-  const row = upsert.rows[0];
+  const counts = await pool.query<{ total: string; sold: string }>(
+    `SELECT COUNT(*)::text AS total,
+       COUNT(*) FILTER (WHERE status = 'sold')::text AS sold
+     FROM stock_units WHERE sale_id = 1`,
+  );
+  const totalRows = Number.parseInt(counts.rows[0]?.total ?? '0', 10);
+  if (totalRows !== stockQty) {
+    console.warn(
+      `[boot] stock diverge: sale_config stock_qty=${String(stockQty)} but stock_units rows=${String(totalRows)} (sold=${String(counts.rows[0]?.sold ?? '?')}); status totalStock will disagree with reality`,
+    );
+  }
   console.log(
-    `[boot] sale_config id=${String(row?.id)} stock_qty=${String(row?.stock_qty)} units_inserted=${String(topped.rowCount)}`,
+    `[boot] sale_config id=${String(row?.id)} stock_qty=${String(row?.stock_qty)} units_deleted=${String(shrink.rowCount)} units_inserted=${String(topped.rowCount)}`,
   );
 }
 
