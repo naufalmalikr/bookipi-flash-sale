@@ -25,9 +25,10 @@ const connectionString: string =
 export const pool = new pg.Pool({
   connectionString,
   max: poolMax,
-  // pg passes these through as connection-startup options.
-  statement_timeout: '5s',
-  lock_timeout: '2s',
+  // pg expects these in MILLISECONDS as numbers (a string like '5s' is
+  // coerced to 5, i.e. a 5ms timeout that cancels every real query).
+  statement_timeout: 5000,
+  lock_timeout: 2000,
 });
 
 /** Thin query helper so routes/services share one call shape. */

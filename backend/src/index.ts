@@ -4,7 +4,8 @@
  * - setValidatorCompiler Zod adapter returning {value}/{error}, NEVER throws.
  * - @fastify/cors open; @fastify/rate-limit global:false, per-route ONLY on
  *   POST /api/purchase (status/events/health/purchase-:userId unlimited).
- * - GET /health -> {ok:true}; stubs -> 501 not-implemented (Todos 6-9 own them);
+ * - GET /health -> {ok:true}; GET /api/sale/status live (Todo 8, cached
+ *   stockRemaining); remaining stubs -> 501 not-implemented (Todos 6-7,9);
  *   POST /api/purchase validates {userId: email} -> invalid body 400
  *   invalid-userId, valid body -> 501 (proves Zod works).
  * - Uniform JSON error envelope {error, message}: 404 via setNotFoundHandler,
@@ -22,6 +23,10 @@ import rateLimit from '@fastify/rate-limit';
 import { z } from 'zod';
 import { loadBootEnv } from './env.js';
 import { pool } from './db/pool.js';
+import { stockCache, invalidateStockCache } from './cache/stockCache.js';
+// Todo 7 hook: call invalidateStockCache() after every purchase-commit.
+// Referenced here so the import stays live until the claim path lands.
+void invalidateStockCache;
 
 const here = dirname(fileURLToPath(import.meta.url));
 // dist layout mirrors src, so a co-located dist/db/schema.sql wins when the
@@ -141,9 +146,64 @@ export async function buildApp(rateLimitBuy: number) {
 
   // --- Stubs (Todos 6-9 implement; 501 proves routing + envelope) ---
   app.get('/api/sale/status', (_req, reply) => {
-    void reply
-      .code(501)
-      .send(envelope('not-implemented', 'GET /api/sale/status not yet implemented'));
+    void (async () => {
+      try {
+        const cfg = await pool.query<{
+          product_name: string;
+          stock_qty: number;
+          starts_at: Date;
+          ends_at: Date;
+        }>(
+          `SELECT product_name, stock_qty, starts_at, ends_at
+           FROM sale_config WHERE id = 1`,
+        );
+        const row = cfg.rows[0];
+        if (row === undefined) {
+          void reply
+            .code(500)
+            .send(envelope('internal-error', 'Sale is not configured'));
+          return;
+        }
+        const nowMs = Date.now();
+        const startsAt = row.starts_at.toISOString();
+        const endsAt = row.ends_at.toISOString();
+        const serverTime = new Date(nowMs).toISOString();
+        const status =
+          nowMs < row.starts_at.getTime()
+            ? 'upcoming'
+            : nowMs > row.ends_at.getTime()
+              ? 'ended'
+              : 'active';
+        const totalStock = row.stock_qty;
+
+        const hit = stockCache.getStatus();
+        let stockRemaining: number;
+        if (hit !== undefined && hit.value.totalStock === totalStock) {
+          stockRemaining = hit.value.stockRemaining;
+        } else {
+          console.log('[status] cache miss: COUNT stock_units');
+          const counted = await pool.query<{ n: string }>(
+            `SELECT COUNT(*)::text AS n FROM stock_units
+             WHERE sale_id = 1 AND status = 'available'`,
+          );
+          stockRemaining = Number.parseInt(counted.rows[0]?.n ?? '0', 10);
+          stockCache.setStatus({ stockRemaining, totalStock });
+        }
+
+        void reply.code(200).send({
+          status,
+          stockRemaining,
+          totalStock,
+          startsAt,
+          endsAt,
+          serverTime,
+        });
+      } catch {
+        void reply
+          .code(500)
+          .send(envelope('internal-error', 'Failed to load sale status'));
+      }
+    })();
   });
 
   app.get('/api/sale/events', (_req, reply) => {
