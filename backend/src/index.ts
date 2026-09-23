@@ -24,10 +24,8 @@ import { z } from 'zod';
 import { loadBootEnv } from './env.js';
 import { pool } from './db/pool.js';
 import { computeSaleState } from './services/sale.js';
-import { stockCache, invalidateStockCache } from './cache/stockCache.js';
-// Todo 7 hook: call invalidateStockCache() after every purchase-commit.
-// Referenced here so the import stays live until the claim path lands.
-void invalidateStockCache;
+import { stockCache } from './cache/stockCache.js';
+import { registerPurchaseRoute } from './routes/purchase.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 // dist layout mirrors src, so a co-located dist/db/schema.sql wins when the
@@ -212,21 +210,7 @@ export async function buildApp(rateLimitBuy: number) {
       .send(envelope('not-implemented', 'GET /api/sale/events not yet implemented'));
   });
 
-  const purchaseBody = z.object({ userId: z.email() });
-
-  app.post(
-    '/api/purchase',
-    {
-      schema: { body: purchaseBody },
-      config: { rateLimit: { max: rateLimitBuy, timeWindow: '1 minute' } },
-    },
-    (_req, reply) => {
-      // Body already Zod-validated by the compiler; claim lands in Todo 7.
-      void reply
-        .code(501)
-        .send(envelope('not-implemented', 'POST /api/purchase not yet implemented'));
-    },
-  );
+  await registerPurchaseRoute(app, rateLimitBuy);
 
   app.get('/api/purchase/:userId', (_req, reply) => {
     void reply
