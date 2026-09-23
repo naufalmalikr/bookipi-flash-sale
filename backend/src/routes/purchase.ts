@@ -174,8 +174,13 @@ export async function registerPurchaseRoute(
           return;
         }
 
-        const client = await pool.connect();
+        // Pool acquisition lives INSIDE the try: a failed connect() (pool
+        // exhausted, DB timeout — the exact condition a load spike produces)
+        // must 500 via the catch below, never escape as an unhandled
+        // rejection that leaves the client hanging with no reply sent.
+        let client: Awaited<ReturnType<typeof pool.connect>> | undefined;
         try {
+          client = await pool.connect();
           await client.query('BEGIN');
           const claimed = await client.query<{ id: number }>(
             `SELECT id FROM stock_units
@@ -221,7 +226,7 @@ export async function registerPurchaseRoute(
             .code(500)
             .send({ error: 'internal-error', message: 'Purchase failed' });
         } finally {
-          client.release();
+          client?.release();
         }
       })();
     },
