@@ -6,6 +6,6 @@ export default defineConfig({
     // Vitest otherwise picks up and double-counts (8 files/76 tests for
     // 4 unique suites). Unit scope per plan Todo 11.
     include: ['src/**/*.test.ts'],
-    exclude: ['node_modules', 'dist'],
+    exclude: ['node_modules', 'dist', 'src/**/*.integration.test.ts'],
   },
 });
