@@ -89,6 +89,14 @@ so skewed client clocks can't sneak in. `POST /api/purchase` needs no
 idempotency-key header because per-user uniqueness already makes it idempotent
 (a repeat buy returns `409 already-purchased`).
 
+> Buyer identity is unauthenticated: `POST /api/purchase` accepts any email
+> with no ownership proof, so per-email uniqueness is a denial-of-purchase
+> primitive in production — anyone can buy as `victim@example.com` (the real
+> owner then gets `409 already-purchased`) or mint throwaway addresses to
+> drain stock. Accepted for this take-home (the k6 proof only needs the
+> uniqueness mechanism); a real sale must add verification (OTP / magic link /
+> Turnstile) before relying on it.
+
 ## Design choices and trade-offs
 
 Correctness lives in Postgres transactions, not in app memory. Any number of
