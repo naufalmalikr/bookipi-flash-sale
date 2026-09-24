@@ -11,15 +11,15 @@
  * No raw SQL, no process.env, no Fastify imports.
  */
 
-import type { Database } from '../../repositories/database/index.js';
-import type { Cache } from '../../repositories/cache/index.js';
-import type { Logger } from '../../repositories/logger/index.js';
-import type { SaleConfigRow } from '../../entities/SaleConfig.js';
-import type { SaleService } from '../index.js';
+import type { Database } from '../../repositories/database/index.ts';
+import type { Cache } from '../../repositories/cache/index.ts';
+import type { Logger } from '../../repositories/logger/index.ts';
+import type { SaleConfigRow } from '../../entities/SaleConfig.ts';
+import type { SaleService } from '../index.ts';
 import type {
   SaleStatus,
   GetStatusOutput,
-} from '../../models/sale/sale.contract.js';
+} from '../../models/sale/sale.contract.ts';
 
 export class SaleServiceImpl implements SaleService {
   private database: Database;

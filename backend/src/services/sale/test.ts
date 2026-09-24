@@ -1,8 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { SaleServiceImpl } from './index.js';
-import type { Cache } from '../../repositories/cache/index.js';
-import type { Database } from '../../repositories/database/index.js';
-import type { Logger } from '../../repositories/logger/index.js';
+import { SaleServiceImpl } from './index.ts';
+import type { Cache } from '../../repositories/cache/index.ts';
+import type { Database } from '../../repositories/database/index.ts';
+import type { Logger } from '../../repositories/logger/index.ts';
 
 // Service-level vectors ported verbatim from backend/src/services/sale.test.ts.
 // computeSaleState lives on the instance; constructor deps unused for pure math.

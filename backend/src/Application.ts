@@ -1,9 +1,9 @@
 /** Application container: Config + service/repository interfaces, wired in src/index.ts. */
-import type { AppConfig } from './Config.js';
-import type { SaleService, PurchaseService } from './services/index.js';
-import type { Database } from './repositories/database/index.js';
-import type { Cache } from './repositories/cache/index.js';
-import type { Logger } from './repositories/logger/index.js';
+import type { AppConfig } from './Config.ts';
+import type { SaleService, PurchaseService } from './services/index.ts';
+import type { Database } from './repositories/database/index.ts';
+import type { Cache } from './repositories/cache/index.ts';
+import type { Logger } from './repositories/logger/index.ts';
 
 export interface Application {
   config: AppConfig;

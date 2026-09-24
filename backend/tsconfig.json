@@ -12,6 +12,8 @@
     "declaration": false,
     "sourceMap": false,
     "forceConsistentCasingInFileNames": true,
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
     "types": ["node"]
   },
   "include": ["src/**/*.ts"],

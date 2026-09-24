@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { InMemoryCache } from './index.js';
-import { TTL_MS } from '../index.js';
+import { InMemoryCache } from './index.ts';
+import { TTL_MS } from '../index.ts';
 
 afterEach(() => {
   vi.useRealTimers();

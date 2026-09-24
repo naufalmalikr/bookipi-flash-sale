@@ -1,14 +1,14 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
-import { loadConfig } from './Config.js';
-import type { Application } from './Application.js';
-import { PostgresDatabase } from './repositories/database/postgresql/index.js';
-import { InMemoryCache } from './repositories/cache/in-memory/index.js';
-import { ConsoleLogger } from './repositories/logger/console/index.js';
-import { SaleServiceImpl } from './services/sale/index.js';
-import { PurchaseServiceImpl } from './services/purchase/index.js';
-import { startHttp } from './interfaces/http/index.js';
+import { loadConfig } from './Config.ts';
+import type { Application } from './Application.ts';
+import { PostgresDatabase } from './repositories/database/postgresql/index.ts';
+import { InMemoryCache } from './repositories/cache/in-memory/index.ts';
+import { ConsoleLogger } from './repositories/logger/console/index.ts';
+import { SaleServiceImpl } from './services/sale/index.ts';
+import { PurchaseServiceImpl } from './services/purchase/index.ts';
+import { startHttp } from './interfaces/http/index.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const SCHEMA_PATH = join(

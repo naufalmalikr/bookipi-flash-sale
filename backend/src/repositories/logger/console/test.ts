@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ConsoleLogger } from './index.js';
+import { ConsoleLogger } from './index.ts';
 
 describe('ConsoleLogger', () => {
   it('exposes info/warn/error/debug and runs without throw', () => {

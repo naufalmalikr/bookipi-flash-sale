@@ -1,1 +1,1 @@
-export * from './sale.contract.js';
+export * from './sale.contract.ts';

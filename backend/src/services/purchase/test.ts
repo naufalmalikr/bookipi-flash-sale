@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { canonicalizeUserId } from './index.js';
-import { userIdSchema } from '../../models/requests/purchase.request.js';
+import { canonicalizeUserId } from './index.ts';
+import { userIdSchema } from '../../models/requests/purchase.request.ts';
 
 describe('canonicalizeUserId', () => {
   it('4-way Gmail equivalence: dots/+tag/googlemail/case collapse to one id', () => {

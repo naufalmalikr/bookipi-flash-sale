@@ -1,4 +1,4 @@
-import type { ErrorEnvelope } from './envelope.js';
+import type { ErrorEnvelope } from './envelope.ts';
 
 export type PurchaseSuccess = { result: 'purchased'; unitId: number };
 

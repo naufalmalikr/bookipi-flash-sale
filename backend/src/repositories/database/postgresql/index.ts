@@ -5,8 +5,8 @@
 
 import pg from 'pg';
 import type { Pool as PgPool, PoolClient as PgPoolClient } from 'pg';
-import type { Database } from '../index.js';
-import { isUniqueViolation } from '../index.js';
+import type { Database } from '../index.ts';
+import { isUniqueViolation } from '../index.ts';
 
 // ../../Config.js does not exist yet — local shape mirrors
 // AppConfig{databaseUrl:string, poolMax:number}. Config is injected via

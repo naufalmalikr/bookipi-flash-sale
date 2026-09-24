@@ -2,10 +2,10 @@ import Fastify, { type FastifyError, type FastifyInstance, type FastifyRequest }
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import { z } from 'zod';
-import type { Application } from '../../Application.js';
-import { envelope } from '../../models/responses/envelope.js';
-import { registerSaleRoutes } from './handlers/api/sale/index.js';
-import { registerPurchaseRoutes } from './handlers/api/purchase/index.js';
+import type { Application } from '../../Application.ts';
+import { envelope } from '../../models/responses/envelope.ts';
+import { registerSaleRoutes } from './handlers/api/sale/index.ts';
+import { registerPurchaseRoutes } from './handlers/api/purchase/index.ts';
 
 /** Branded error thrown by our Zod validator compiler. Matched with
  * `instanceof` in the error handler — never by message string, so it

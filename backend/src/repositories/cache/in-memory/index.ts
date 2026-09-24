@@ -1,6 +1,6 @@
-import type { Cache } from '../index.js';
-import type { StockStatus } from '../../../entities/StockStatus.js';
-import { TTL_MS } from '../index.js';
+import type { Cache } from '../index.ts';
+import type { StockStatus } from '../../../entities/StockStatus.ts';
+import { TTL_MS } from '../index.ts';
 
 interface CacheEntry {
   value: StockStatus;

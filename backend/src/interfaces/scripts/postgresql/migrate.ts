@@ -11,8 +11,8 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
-import { loadConfig } from '../../../Config.js';
-import { PostgresDatabase } from '../../../repositories/database/postgresql/index.js';
+import { loadConfig } from '../../../Config.ts';
+import { PostgresDatabase } from '../../../repositories/database/postgresql/index.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const MIGRATION_PATH = join(here, 'migrations', '001_init.sql');

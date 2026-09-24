@@ -1,4 +1,4 @@
-import type { Logger } from '../index.js';
+import type { Logger } from '../index.ts';
 
 export class ConsoleLogger implements Logger {
   info(msg: string, ...args: unknown[]): void {

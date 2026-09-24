@@ -2,14 +2,14 @@ import http from 'node:http';
 import { Client as PgClient } from 'pg';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { buildHttpServer } from './index.js';
-import type { Application } from '../../Application.js';
-import { PostgresDatabase } from '../../repositories/database/postgresql/index.js';
-import { InMemoryCache } from '../../repositories/cache/in-memory/index.js';
-import { ConsoleLogger } from '../../repositories/logger/console/index.js';
-import { SaleServiceImpl } from '../../services/sale/index.js';
-import { PurchaseServiceImpl } from '../../services/purchase/index.js';
-import { loadConfig } from '../../Config.js';
+import { buildHttpServer } from './index.ts';
+import type { Application } from '../../Application.ts';
+import { PostgresDatabase } from '../../repositories/database/postgresql/index.ts';
+import { InMemoryCache } from '../../repositories/cache/in-memory/index.ts';
+import { ConsoleLogger } from '../../repositories/logger/console/index.ts';
+import { SaleServiceImpl } from '../../services/sale/index.ts';
+import { PurchaseServiceImpl } from '../../services/purchase/index.ts';
+import { loadConfig } from '../../Config.ts';
 
 const CONNECTION_STRING: string = loadConfig().databaseUrl;
 

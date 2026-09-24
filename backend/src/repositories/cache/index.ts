@@ -1,4 +1,4 @@
-import type { StockStatus } from '../../entities/StockStatus.js';
+import type { StockStatus } from '../../entities/StockStatus.ts';
 
 export interface Cache {
   getStatus(): { value: StockStatus; cached: boolean } | undefined;

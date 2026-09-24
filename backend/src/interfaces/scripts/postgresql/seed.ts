@@ -11,8 +11,8 @@
  */
 
 import { pathToFileURL } from 'node:url';
-import { loadConfig } from '../../../Config.js';
-import { PostgresDatabase } from '../../../repositories/database/postgresql/index.js';
+import { loadConfig } from '../../../Config.ts';
+import { PostgresDatabase } from '../../../repositories/database/postgresql/index.ts';
 
 export async function seed(): Promise<void> {
   const config = loadConfig();

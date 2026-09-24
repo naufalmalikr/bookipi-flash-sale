@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { PostgresDatabase, isUniqueViolation } from './index.js';
+import { PostgresDatabase, isUniqueViolation } from './index.ts';
 
 // SQL strings live ONLY in postgresql/index.ts; this helper asserts the
 // exported mapper without opening a DB connection.

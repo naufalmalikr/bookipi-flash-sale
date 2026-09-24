@@ -1,8 +1,8 @@
 import type { FastifyInstance } from 'fastify';
 import type { ServerResponse } from 'node:http';
-import type { Application } from '../../../../../Application.js';
-import { envelope } from '../../../../../models/responses/envelope.js';
-import type { SaleStatusResponse } from '../../../../../models/responses/sale.response.js';
+import type { Application } from '../../../../../Application.ts';
+import { envelope } from '../../../../../models/responses/envelope.ts';
+import type { SaleStatusResponse } from '../../../../../models/responses/sale.response.ts';
 
 function formatStatus(payload: SaleStatusResponse): string {
   return `event: status\ndata: ${JSON.stringify(payload)}\n\n`;

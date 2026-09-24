@@ -16,16 +16,16 @@
  * No raw SQL, no process.env, no Fastify imports.
  */
 
-import type { Database } from '../../repositories/database/index.js';
-import type { Cache } from '../../repositories/cache/index.js';
-import type { Logger } from '../../repositories/logger/index.js';
-import type { PurchaseService } from '../index.js';
+import type { Database } from '../../repositories/database/index.ts';
+import type { Cache } from '../../repositories/cache/index.ts';
+import type { Logger } from '../../repositories/logger/index.ts';
+import type { PurchaseService } from '../index.ts';
 import type {
   AttemptPurchaseOutput,
   GetPurchaseOutput,
   PurchaseCommittedEvent,
   PurchaseCommittedListener,
-} from '../../models/purchase/purchase.contract.js';
+} from '../../models/purchase/purchase.contract.ts';
 
 const GMAIL_DOMAINS = new Set(['gmail.com', 'googlemail.com']);
 
