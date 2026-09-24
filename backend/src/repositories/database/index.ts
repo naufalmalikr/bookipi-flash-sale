@@ -1,11 +1,32 @@
-export type {
-  SaleConfig,
-  SaleConfigRow,
-  StockCounts,
-  ClaimResult,
-  Database,
-  DatabaseTransaction,
-} from '../../entities/index.js';
+import type { SaleConfigRow } from '../../entities/SaleConfig.js';
+import type { StockCounts } from '../../entities/StockCounts.js';
+import type { ClaimResult } from '../../entities/ClaimResult.js';
+
+export type { SaleConfig, SaleConfigRow } from '../../entities/SaleConfig.js';
+export type { StockCounts } from '../../entities/StockCounts.js';
+export type { ClaimResult } from '../../entities/ClaimResult.js';
+
+export interface DatabaseTransaction {
+  query<T>(text: string, params?: unknown[]): Promise<{ rows: T[]; rowCount: number | null }>;
+}
+
+export interface Database {
+  getSaleConfig(): Promise<SaleConfigRow | undefined>;
+  countAvailable(saleId: number): Promise<number>;
+  getCounts(saleId: number): Promise<StockCounts>;
+  findPurchaseByCanonical(saleId: number, canonical: string): Promise<{ unitId: number } | undefined>;
+  hasPriorPurchase(saleId: number, canonical: string): Promise<boolean>;
+  claimPurchase(
+    saleId: number,
+    canonical: string,
+    rawUserId: string,
+  ): Promise<ClaimResult>;
+  getSaleWindow(): Promise<{ startsAt: Date; endsAt: Date } | undefined>;
+  ensureSchema(sql: string): Promise<void>;
+  upsertSaleConfig(product: string, qty: number, start: string, end: string): Promise<void>;
+  convergeUnits(saleId: number, targetQty: number): Promise<{ deleted: number | null; inserted: number | null }>;
+  close(): Promise<void>;
+}
 
 export function isUniqueViolation(err: unknown): boolean {
   return (

@@ -1,2 +1,9 @@
-export type { Cache } from '../../entities/index.js';
-export { TTL_MS } from '../../entities/index.js';
+import type { StockStatus } from '../../entities/StockStatus.js';
+
+export interface Cache {
+  getStatus(): { value: StockStatus; cached: boolean } | undefined;
+  setStatus(s: StockStatus): void;
+  invalidate(): void;
+}
+
+export const TTL_MS = 5000;
