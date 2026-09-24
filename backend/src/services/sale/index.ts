@@ -17,7 +17,10 @@ import type { Cache } from '../../repositories/cache/index.js';
 import type { Logger } from '../../repositories/logger/index.js';
 import type { SaleConfigRow } from '../../entities/SaleConfig.js';
 import type { SaleService } from '../index.js';
-import type { SaleStatusResponse } from '../../models/responses/sale.response.js';
+import type {
+  SaleStatus,
+  GetStatusOutput,
+} from '../../models/sale/sale.contract.js';
 
 export class SaleServiceImpl implements SaleService {
   private database: Database;
@@ -34,13 +37,13 @@ export class SaleServiceImpl implements SaleService {
     s: number,
     e: number,
     n: number,
-  ): { status: 'upcoming' | 'active' | 'ended' } {
+  ): { status: SaleStatus } {
     if (n < s) return { status: 'upcoming' };
     if (n > e) return { status: 'ended' };
     return { status: 'active' };
   }
 
-  async getStatus(nowMs: number = Date.now()): Promise<SaleStatusResponse> {
+  async getStatus(nowMs: number = Date.now()): Promise<GetStatusOutput> {
     const cfg: SaleConfigRow | undefined = await this.database.getSaleConfig();
     if (cfg === undefined) throw new Error('sale-not-configured');
     const { status } = this.computeSaleState(
@@ -70,7 +73,7 @@ export class SaleServiceImpl implements SaleService {
     };
   }
 
-  async buildStatusPayload(nowMs: number = Date.now()): Promise<SaleStatusResponse> {
+  async buildStatusPayload(nowMs: number = Date.now()): Promise<GetStatusOutput> {
     const cfg: SaleConfigRow | undefined = await this.database.getSaleConfig();
     if (cfg === undefined) throw new Error('sale-not-configured');
     const { status } = this.computeSaleState(

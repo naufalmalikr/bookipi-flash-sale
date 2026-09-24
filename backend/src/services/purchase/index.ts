@@ -25,6 +25,7 @@ import type {
   AttemptPurchaseOutput,
   GetPurchaseOutput,
   PurchaseCommittedEvent,
+  PurchaseCommittedListener,
 } from '../../models/purchase/purchase.contract.js';
 
 /** Zod email schema feeding the purchase path (mirrors purchaseBodySchema). */
@@ -79,8 +80,6 @@ export function canonicalizeUserId(raw: string): string {
 
   return `${local}@${domain}`;
 }
-
-export type PurchaseCommittedListener = (ev: PurchaseCommittedEvent) => void;
 
 export class PurchaseServiceImpl implements PurchaseService {
   private database: Database;
