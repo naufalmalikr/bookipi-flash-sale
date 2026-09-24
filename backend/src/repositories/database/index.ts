@@ -2,10 +2,6 @@ import type { SaleConfigRow } from '../../entities/SaleConfig.js';
 import type { StockCounts } from '../../entities/StockCounts.js';
 import type { ClaimResult } from '../../entities/ClaimResult.js';
 
-export type { SaleConfig, SaleConfigRow } from '../../entities/SaleConfig.js';
-export type { StockCounts } from '../../entities/StockCounts.js';
-export type { ClaimResult } from '../../entities/ClaimResult.js';
-
 export interface DatabaseTransaction {
   query<T>(text: string, params?: unknown[]): Promise<{ rows: T[]; rowCount: number | null }>;
 }
