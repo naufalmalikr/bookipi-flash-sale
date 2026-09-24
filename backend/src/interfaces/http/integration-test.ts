@@ -9,10 +9,9 @@ import { InMemoryCache } from '../../repositories/cache/in-memory/index.js';
 import { ConsoleLogger } from '../../repositories/logger/console/index.js';
 import { SaleServiceImpl } from '../../services/sale/index.js';
 import { PurchaseServiceImpl } from '../../services/purchase/index.js';
+import { loadConfig } from '../../Config.js';
 
-const CONNECTION_STRING: string =
-  process.env['DATABASE_URL'] ??
-  'postgres://postgres:postgres@localhost:5432/flashsale';
+const CONNECTION_STRING: string = loadConfig().databaseUrl;
 
 interface StatusBody {
   status: string;

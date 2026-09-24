@@ -2,10 +2,11 @@ import { defineConfig } from 'vitest/config';
 
 export default defineConfig({
   test: {
-    // Real-Postgres integration scope per plan Todo 13: the single
-    // src/flash-sale.integration.test.ts file (sequential, no cross-file DB
-    // interference). Unit scope (vitest.config.ts) EXCLUDES this file so
-    // `npm run test` stays offline (4 files / 38 tests).
+    // Real-Postgres integration scope: the single
+    // src/interfaces/http/integration-test.ts file (6 tests, sequential,
+    // no cross-file DB interference). Unit scope (vitest.config.ts)
+    // EXCLUDES this file so `npm run test` stays offline
+    // (7 files / 46 tests).
     include: ['src/**/*.integration.test.ts', 'src/**/integration-test.ts'],
     exclude: ['node_modules', 'dist'],
     testTimeout: 60000,

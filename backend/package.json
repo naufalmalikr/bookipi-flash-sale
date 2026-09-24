@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node --experimental-strip-types src/index.ts",
-    "build": "tsc",
+    "build": "tsc && mkdir -p dist/interfaces/scripts/postgresql/migrations && cp src/interfaces/scripts/postgresql/migrations/001_init.sql dist/interfaces/scripts/postgresql/migrations/001_init.sql",
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
