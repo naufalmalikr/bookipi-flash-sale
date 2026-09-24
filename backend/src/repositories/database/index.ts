@@ -1,6 +1,6 @@
-import type { SaleConfigRow } from '../../entities/SaleConfig.js';
-import type { StockCounts } from '../../entities/StockCounts.js';
-import type { ClaimResult } from '../../entities/ClaimResult.js';
+import type { SaleConfigRow } from '../../entities/SaleConfig.ts';
+import type { StockCounts } from '../../entities/StockCounts.ts';
+import type { ClaimResult } from '../../entities/ClaimResult.ts';
 
 export interface DatabaseTransaction {
   query<T>(text: string, params?: unknown[]): Promise<{ rows: T[]; rowCount: number | null }>;

@@ -2,7 +2,7 @@
 
 TL;DR: 1,000 buyers fight for 100 units, every claim runs through Postgres, and the count lands at exactly 100 sold with zero oversell.
 
-> Repo: `https://github.com/<your-org>/bookipi-flash-sale` (placeholder, replace with the real remote).
+> Repo: https://github.com/naufalmalikr/bookipi-flash-sale
 
 ## Prerequisites
 
@@ -58,6 +58,9 @@ it deletes the Postgres volume that holds the stress proof).
 Compose is the supported path, though both apps also run on the host.
 Postgres stays in Docker either way (host port `5432` is mapped, so
 host-side code can reach it at `localhost:5432`).
+Compose serves the Vite **dev** server on `:5173`, not a production build
+(`frontend/Dockerfile` runs `npm run dev`); `npm --prefix frontend run build`
+is the prod-bundle check.
 
 ```sh
 docker compose up --build -d          # full stack
@@ -170,14 +173,18 @@ so any drift means the doc is stale, not the build.
 ## Tests
 
 Unit suites cover canonicalization vectors, window-gate boundaries, error-code
-mapping, and Zod schemas. Integration suites run against real Postgres 18.6 in
-Docker: lifecycle (`upcoming` to `active` to `ended`), Gmail-variant `409`,
-sold-out path, SSE delivery on purchase, and a 5-stock/50-parallel exact-5
-probe (exactly 5 `201`s, `sold <= 5`, uniqueness holds).
+mapping, and Zod schemas. Frontend covers pure display helpers (`toneFor`,
+`formatDelta`) with Vitest. Integration suites run against real Postgres 18.6
+in Docker: lifecycle (`upcoming` to `active` to `ended`), Gmail-variant `409`,
+sold-out path, same-user concurrent duplicate at exact exhaustion (one `201` +
+one `409 already-purchased`), SSE delivery on purchase, 5-stock/50-parallel
+exact-5 probe (exactly 5 `201`s, `sold <= 5`, uniqueness holds), and
+crash-rollback proof (aborted claim leaves row `available`).
 
 ```sh
-npm --prefix backend run test              # unit, 4 files / 38 tests green
-npm --prefix backend run test:integration  # integration vs real PG, 6 tests green
+npm --prefix backend run test              # unit, 7 files / 46 tests green
+npm --prefix backend run test:integration  # integration vs real PG, 7 tests green
+npm --prefix frontend run test             # frontend, 1 file / 6 tests green
 ```
 
 The exact-5 probe is the small-scale twin of the stress proof: 50 parallel
@@ -225,7 +232,7 @@ Current repo state: the durable k6 proof is `stress/results-summary.json`
 `sold == 100`; 0 duplicate canonical users / unit ids; 100 distinct emails;
 k6 exit 0, `checks` 249,968/249,968). The live Postgres volume is ephemeral
 (`down -v` wipes it; integration runs reseed it) — treat the summary JSON +
-`.omo/evidence/task-14-flash-sale-build.log` as the durable record, not the
+`stress/evidence/k6-proof-excerpt.md` as the durable record, not the
 container's current rows. A fresh reviewer run reproduces the numbers from a
 clean seed instead.
 

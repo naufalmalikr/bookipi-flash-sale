@@ -1,11 +1,11 @@
 import type { FastifyInstance } from 'fastify';
-import type { Application } from '../../../../../Application.js';
-import { envelope } from '../../../../../models/responses/envelope.js';
-import { purchaseBodySchema } from '../../../../../models/requests/purchase.request.js';
+import type { Application } from '../../../../../Application.ts';
+import { envelope } from '../../../../../models/responses/envelope.ts';
+import { purchaseBodySchema } from '../../../../../models/requests/purchase.request.ts';
 import type {
   AttemptPurchaseOutput,
   GetPurchaseOutput,
-} from '../../../../../models/purchase/purchase.contract.js';
+} from '../../../../../models/purchase/purchase.contract.ts';
 
 export function registerPurchaseRoutes(fastify: FastifyInstance, application: Application): void {
   fastify.get('/api/purchase/:userId', (req, reply) => {

@@ -1,6 +1,6 @@
-export type { SaleConfig, SaleConfigRow } from './SaleConfig.js';
-export type { StockStatus } from './StockStatus.js';
-export type { StockUnit } from './StockUnit.js';
-export type { Purchase } from './Purchase.js';
-export type { StockCounts } from './StockCounts.js';
-export type { ClaimResult } from './ClaimResult.js';
+export type { SaleConfig, SaleConfigRow } from './SaleConfig.ts';
+export type { StockStatus } from './StockStatus.ts';
+export type { StockUnit } from './StockUnit.ts';
+export type { Purchase } from './Purchase.ts';
+export type { StockCounts } from './StockCounts.ts';
+export type { ClaimResult } from './ClaimResult.ts';

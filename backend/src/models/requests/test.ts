@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { purchaseBodySchema } from './purchase.request.js';
+import { purchaseBodySchema } from './purchase.request.ts';
 
 describe('purchaseBodySchema valid vectors', () => {
   it('accepts a plain valid email', () => {

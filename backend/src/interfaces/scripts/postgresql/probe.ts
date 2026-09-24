@@ -13,7 +13,7 @@
 
 import net from 'node:net';
 import { pathToFileURL } from 'node:url';
-import { loadConfig } from '../../../Config.js';
+import { loadConfig } from '../../../Config.ts';
 
 export interface ProbeTarget {
   host: string;

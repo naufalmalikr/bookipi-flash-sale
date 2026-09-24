@@ -1,8 +1,7 @@
 /**
  * SaleServiceImpl: owns window gate + status composition.
  *
- * - computeSaleState: pure boundary math, verbatim from
- *   backend/src/services/sale.ts (inclusive on both ends).
+ * - computeSaleState: pure boundary math, inclusive on both ends.
  * - getStatus: authoritative sale_config read via database.getSaleConfig()
  *   (throw sale-not-configured if missing), status via Date.now(), then
  *   cache.getStatus() when totalStock matches else database.countAvailable(1)
@@ -12,15 +11,15 @@
  * No raw SQL, no process.env, no Fastify imports.
  */
 
-import type { Database } from '../../repositories/database/index.js';
-import type { Cache } from '../../repositories/cache/index.js';
-import type { Logger } from '../../repositories/logger/index.js';
-import type { SaleConfigRow } from '../../entities/SaleConfig.js';
-import type { SaleService } from '../index.js';
+import type { Database } from '../../repositories/database/index.ts';
+import type { Cache } from '../../repositories/cache/index.ts';
+import type { Logger } from '../../repositories/logger/index.ts';
+import type { SaleConfigRow } from '../../entities/SaleConfig.ts';
+import type { SaleService } from '../index.ts';
 import type {
   SaleStatus,
   GetStatusOutput,
-} from '../../models/sale/sale.contract.js';
+} from '../../models/sale/sale.contract.ts';
 
 export class SaleServiceImpl implements SaleService {
   private database: Database;
@@ -58,7 +57,7 @@ export class SaleServiceImpl implements SaleService {
     if (hit !== undefined && hit.value.totalStock === totalStock) {
       stockRemaining = hit.value.stockRemaining;
     } else {
-      this.logger?.info?.('[status] cache miss: countAvailable');
+      this.logger.info('[status] cache miss: countAvailable');
       stockRemaining = await this.database.countAvailable(1);
       this.cache.setStatus({ stockRemaining, totalStock });
     }

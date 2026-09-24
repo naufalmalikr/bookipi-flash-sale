@@ -1,12 +1,12 @@
 import type {
   SaleStatus,
   GetStatusOutput,
-} from '../models/sale/sale.contract.js';
+} from '../models/sale/sale.contract.ts';
 import type {
   AttemptPurchaseOutput,
   GetPurchaseOutput,
   PurchaseCommittedListener,
-} from '../models/purchase/purchase.contract.js';
+} from '../models/purchase/purchase.contract.ts';
 
 export interface SaleService {
   computeSaleState(

@@ -1,4 +1,4 @@
-import type { SaleStatusResponse } from '../responses/sale.response.js';
+import type { SaleStatusResponse } from '../responses/sale.response.ts';
 
 export type SaleStatus = 'upcoming' | 'active' | 'ended';
 

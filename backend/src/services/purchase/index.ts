@@ -9,27 +9,23 @@
  *   5. on success: cache.invalidate() + broadcast to listeners
  *   6. catch-all -> internal-error
  *
- * Canonicalization is backend-authoritative, copied verbatim from
- * backend/src/utils/canonicalize.ts: trim + lowercase always; Gmail-only
+ * Canonicalization is backend-authoritative and lives in this file
+ * (canonicalizeUserId below): trim + lowercase always; Gmail-only
  * (gmail.com | googlemail.com -> gmail.com): strip dots, strip +tag.
  *
  * No raw SQL, no process.env, no Fastify imports.
  */
 
-import { z } from 'zod';
-import type { Database } from '../../repositories/database/index.js';
-import type { Cache } from '../../repositories/cache/index.js';
-import type { Logger } from '../../repositories/logger/index.js';
-import type { PurchaseService } from '../index.js';
+import type { Database } from '../../repositories/database/index.ts';
+import type { Cache } from '../../repositories/cache/index.ts';
+import type { Logger } from '../../repositories/logger/index.ts';
+import type { PurchaseService } from '../index.ts';
 import type {
   AttemptPurchaseOutput,
   GetPurchaseOutput,
   PurchaseCommittedEvent,
   PurchaseCommittedListener,
-} from '../../models/purchase/purchase.contract.js';
-
-/** Zod email schema feeding the purchase path (mirrors purchaseBodySchema). */
-export const userIdSchema = z.string().trim().pipe(z.email());
+} from '../../models/purchase/purchase.contract.ts';
 
 const GMAIL_DOMAINS = new Set(['gmail.com', 'googlemail.com']);
 
@@ -160,14 +156,11 @@ export class PurchaseServiceImpl implements PurchaseService {
       this.broadcast({ unitId: claimed.unitId, canonicalUserId: canonical });
       return { ok: true, unitId: claimed.unitId };
     } catch (err) {
-      // Same-user race that slipped past the fast-path surfaces as a
-      // unique-violation message from the repository claim path.
+      // In-txn window re-gate surfaces as a thrown message from the
+      // repository claim path (returned outcomes never throw).
       const msg = err instanceof Error ? err.message : '';
       if (msg === 'sale-not-active') {
         return { ok: false, error: 'sale-not-active' };
-      }
-      if (msg === 'already-purchased') {
-        return { ok: false, error: 'already-purchased' };
       }
       this.logger.error('purchase attempt failed', err);
       return { ok: false, error: 'internal-error' };

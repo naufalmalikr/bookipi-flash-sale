@@ -1,1 +1,1 @@
-export * from './purchase.request.js';
+export * from './purchase.request.ts';

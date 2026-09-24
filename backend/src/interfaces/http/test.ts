@@ -1,12 +1,12 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { buildHttpServer } from './index.js';
-import type { Application } from '../../Application.js';
-import { SaleServiceImpl } from '../../services/sale/index.js';
-import { PurchaseServiceImpl, canonicalizeUserId } from '../../services/purchase/index.js';
-import type { Cache } from '../../repositories/cache/index.js';
-import type { Database } from '../../repositories/database/index.js';
-import type { Logger } from '../../repositories/logger/index.js';
+import { buildHttpServer } from './index.ts';
+import type { Application } from '../../Application.ts';
+import { SaleServiceImpl } from '../../services/sale/index.ts';
+import { PurchaseServiceImpl, canonicalizeUserId } from '../../services/purchase/index.ts';
+import type { Cache } from '../../repositories/cache/index.ts';
+import type { Database } from '../../repositories/database/index.ts';
+import type { Logger } from '../../repositories/logger/index.ts';
 
 function stubDb(): Database {
   const noDb = (): never => {

@@ -1,3 +1,3 @@
-export * from './envelope.js';
-export * from './sale.response.js';
-export * from './purchase.response.js';
+export * from './envelope.ts';
+export * from './sale.response.ts';
+export * from './purchase.response.ts';

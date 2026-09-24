@@ -2,26 +2,37 @@ import Fastify, { type FastifyError, type FastifyInstance, type FastifyRequest }
 import cors from '@fastify/cors';
 import rateLimit from '@fastify/rate-limit';
 import { z } from 'zod';
-import type { Application } from '../../Application.js';
-import { envelope } from '../../models/responses/envelope.js';
-import { registerSaleRoutes } from './handlers/api/sale/index.js';
-import { registerPurchaseRoutes } from './handlers/api/purchase/index.js';
+import type { Application } from '../../Application.ts';
+import { envelope } from '../../models/responses/envelope.ts';
+import { registerSaleRoutes } from './handlers/api/sale/index.ts';
+import { registerPurchaseRoutes } from './handlers/api/purchase/index.ts';
 
-interface ZodValidationMarker {
-  validation: unknown;
+/** Branded error thrown by our Zod validator compiler. Matched with
+ * `instanceof` in the error handler — never by message string, so it
+ * survives Fastify upgrades that reword internal messages. Fastify's
+ * `wrapValidationError` passes `Error` instances through untouched
+ * (only stamping `statusCode`/`code`), so the brand arrives intact. */
+export class ZodValidationError extends Error {
+  readonly validation: unknown;
+  constructor(validation: unknown) {
+    super('validation');
+    this.name = 'ZodValidationError';
+    this.validation = validation;
+  }
 }
 
-function isZodValidationError(err: unknown): err is Error & ZodValidationMarker {
-  if (typeof err !== 'object' || err === null) return false;
-  return (
-    'message' in err &&
-    (err as { message?: unknown }).message === 'validation' &&
-    'validation' in err
-  );
+function isZodValidationError(err: unknown): err is ZodValidationError {
+  return err instanceof ZodValidationError;
 }
 
 export async function buildHttpServer(application: Application): Promise<FastifyInstance> {
-  const fastify = Fastify({ logger: true });
+  // trustProxy: behind a load balancer the client IP arrives via
+  // `X-Forwarded-For`. Without this, `request.ip` is the proxy's IP and the
+  // buy rate limiter measures the LB, not the buyer — the same single-IP
+  // class of problem as the k6 single-NAT note (solved there with
+  // `RATE_LIMIT_BUY=0`). The explicit `keyGenerator` below pins the limit
+  // key to that proxy-aware IP.
+  const fastify = Fastify({ logger: true, trustProxy: true });
 
   fastify.setValidatorCompiler(({ schema }) => {
     return (data: unknown) => {
@@ -30,11 +41,7 @@ export async function buildHttpServer(application: Application): Promise<Fastify
       if (parsed.success) {
         return { value: parsed.data };
       }
-      return {
-        error: Object.assign(new Error('validation'), {
-          validation: parsed.error.issues,
-        }),
-      };
+      return { error: new ZodValidationError(parsed.error.issues) };
     };
   });
 
@@ -42,6 +49,7 @@ export async function buildHttpServer(application: Application): Promise<Fastify
     fastify.register(cors, { origin: true }),
     fastify.register(rateLimit, {
       global: false,
+      keyGenerator: (req) => req.ip,
       errorResponseBuilder: (_req: FastifyRequest, context: { after: string }) =>
         Object.assign(new Error(`Rate limit exceeded, retry in ${context.after}`), {
           statusCode: 429,
@@ -104,8 +112,29 @@ export async function startHttp(application: Application): Promise<FastifyInstan
   const fastify = await buildHttpServer(application);
   await fastify.listen({ host: '0.0.0.0', port: application.config.port });
   application.logger.info(
-    `[boot] listening on 0.0.0.0:${String(application.config.port)} ` +
-    `sale=${application.config.saleStart}..${application.config.saleEnd}`,
+    `[boot] listening on 0.0.0.0:${String(application.config.port)} sale=${application.config.saleStart}..${application.config.saleEnd}`,
   );
+  let closing = false;
+  async function shutdown(signal: string): Promise<void> {
+    if (closing) return;
+    closing = true;
+    application.logger.info(`[shutdown] ${signal} received, draining`);
+    try {
+      await fastify.close();
+    } catch (err) {
+      application.logger.error('[shutdown] fastify.close failed', err);
+    }
+    try {
+      await application.database.close();
+    } catch (err) {
+      application.logger.error('[shutdown] pool.end failed', err);
+    }
+    process.exit(0);
+  }
+  for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+    process.once(signal, () => {
+      void shutdown(signal);
+    });
+  }
   return fastify;
 }

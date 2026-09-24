@@ -2,14 +2,14 @@ import http from 'node:http';
 import { Client as PgClient } from 'pg';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { buildHttpServer } from './index.js';
-import type { Application } from '../../Application.js';
-import { PostgresDatabase } from '../../repositories/database/postgresql/index.js';
-import { InMemoryCache } from '../../repositories/cache/in-memory/index.js';
-import { ConsoleLogger } from '../../repositories/logger/console/index.js';
-import { SaleServiceImpl } from '../../services/sale/index.js';
-import { PurchaseServiceImpl } from '../../services/purchase/index.js';
-import { loadConfig } from '../../Config.js';
+import { buildHttpServer } from './index.ts';
+import type { Application } from '../../Application.ts';
+import { PostgresDatabase } from '../../repositories/database/postgresql/index.ts';
+import { InMemoryCache } from '../../repositories/cache/in-memory/index.ts';
+import { ConsoleLogger } from '../../repositories/logger/console/index.ts';
+import { SaleServiceImpl } from '../../services/sale/index.ts';
+import { PurchaseServiceImpl } from '../../services/purchase/index.ts';
+import { loadConfig } from '../../Config.ts';
 
 const CONNECTION_STRING: string = loadConfig().databaseUrl;
 
@@ -38,10 +38,6 @@ function isoAt(offsetMs: number): string {
 
 function buildTestApplication(): { application: Application; client: PgClient } {
   const client = new PgClient({ connectionString: CONNECTION_STRING });
-  const raw = {
-    query: <T>(text: string, params?: unknown[]): Promise<{ rows: T[]; rowCount: number | null }> =>
-      client.query(text, params as unknown[]) as unknown as Promise<{ rows: T[]; rowCount: number | null }>,
-  };
   const config = {
     port: 0,
     databaseUrl: CONNECTION_STRING,
@@ -52,7 +48,6 @@ function buildTestApplication(): { application: Application; client: PgClient } 
     rateLimitBuy: 100000,
     poolMax: 10,
   };
-  void raw;
   const database = new PostgresDatabase(config);
   const cache = new InMemoryCache();
   const logger = new ConsoleLogger();
@@ -232,6 +227,38 @@ describe('sold-out path', () => {
       client,
       `SELECT COUNT(*)::text AS n FROM stock_units WHERE sale_id = 1 AND status = 'sold'`,
     );
+    expect(sold).toBe(1);
+  });
+});
+
+describe('same-user concurrent duplicate at exact exhaustion', () => {
+  it('one 201 + one 409 already-purchased, never sold-out for the buyer', async () => {
+    await resetDb(client, application.cache, 1, isoAt(-60_000), isoAt(600_000));
+    const attempts = await Promise.all([
+      app.inject({
+        method: 'POST',
+        url: '/api/purchase',
+        payload: { userId: 'twin@example.com' },
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/api/purchase',
+        payload: { userId: 'twin@example.com' },
+      }),
+    ]);
+    const won = attempts.filter((r) => r.statusCode === 201);
+    const dupes = attempts.filter(
+      (r) => r.statusCode === 409 && (JSON.parse(r.body) as ErrBody).error === 'already-purchased',
+    );
+    const sold = await countOf(
+      client,
+      `SELECT COUNT(*)::text AS n FROM stock_units WHERE sale_id = 1 AND status = 'sold'`,
+    );
+    console.log(
+      `[integration] m1: won=${String(won.length)} dupes=${String(dupes.length)} sold=${String(sold)} (expect 1/1/1)`,
+    );
+    expect(won.length).toBe(1);
+    expect(dupes.length).toBe(1);
     expect(sold).toBe(1);
   });
 });
