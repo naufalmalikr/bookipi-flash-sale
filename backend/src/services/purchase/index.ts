@@ -17,14 +17,14 @@
  */
 
 import { z } from 'zod';
-import type { Database } from '../../entities/Database.js';
-import type { Cache } from '../../entities/Cache.js';
-import type { Logger } from '../../entities/Logger.js';
+import type { Database } from '../../repositories/database/index.js';
+import type { Cache } from '../../repositories/cache/index.js';
+import type { Logger } from '../../repositories/logger/index.js';
+import type { PurchaseService } from '../index.js';
 import type {
   AttemptPurchaseOutput,
   GetPurchaseOutput,
   PurchaseCommittedEvent,
-  PurchaseService,
 } from '../../models/purchase/purchase.contract.js';
 
 /** Zod email schema feeding the purchase path (mirrors purchaseBodySchema). */

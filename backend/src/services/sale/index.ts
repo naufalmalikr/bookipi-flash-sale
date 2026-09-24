@@ -12,11 +12,11 @@
  * No raw SQL, no process.env, no Fastify imports.
  */
 
-import type { Database } from '../../entities/Database.js';
-import type { Cache } from '../../entities/Cache.js';
-import type { Logger } from '../../entities/Logger.js';
+import type { Database } from '../../repositories/database/index.js';
+import type { Cache } from '../../repositories/cache/index.js';
+import type { Logger } from '../../repositories/logger/index.js';
 import type { SaleConfigRow } from '../../entities/SaleConfig.js';
-import type { SaleService } from '../../models/sale/sale.contract.js';
+import type { SaleService } from '../index.js';
 import type { SaleStatusResponse } from '../../models/responses/sale.response.js';
 
 export class SaleServiceImpl implements SaleService {

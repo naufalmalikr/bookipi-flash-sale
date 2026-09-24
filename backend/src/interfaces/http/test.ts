@@ -4,9 +4,9 @@ import { buildHttpServer } from './index.js';
 import type { Application } from '../../Application.js';
 import { SaleServiceImpl } from '../../services/sale/index.js';
 import { PurchaseServiceImpl, canonicalizeUserId } from '../../services/purchase/index.js';
-import type { Cache } from '../../entities/Cache.js';
-import type { Database } from '../../entities/Database.js';
-import type { Logger } from '../../entities/Logger.js';
+import type { Cache } from '../../repositories/cache/index.js';
+import type { Database } from '../../repositories/database/index.js';
+import type { Logger } from '../../repositories/logger/index.js';
 
 function stubDb(): Database {
   const noDb = (): never => {
