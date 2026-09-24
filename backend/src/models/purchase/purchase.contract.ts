@@ -17,3 +17,14 @@ export type GetPurchaseOutput =
   | { found: true; unitId: number }
   | { found: false }
   | { error: 'invalid-userId' };
+
+export interface PurchaseCommittedEvent {
+  unitId: number;
+  canonicalUserId: string;
+}
+
+export interface PurchaseService {
+  attemptPurchase(rawUserId: string): Promise<AttemptPurchaseOutput>;
+  getPurchaseByUser(rawUserId: string): Promise<GetPurchaseOutput>;
+  onCommitted(cb: (ev: PurchaseCommittedEvent) => void): () => void;
+}

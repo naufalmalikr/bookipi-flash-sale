@@ -4,8 +4,11 @@ import { buildApp } from './index.js';
 import type { Application } from '../../Application.js';
 import { SaleServiceImpl } from '../../services/sale/index.js';
 import { PurchaseServiceImpl, canonicalizeUserId } from '../../services/purchase/index.js';
+import type { Cache } from '../../entities/Cache.js';
+import type { Database } from '../../entities/Database.js';
+import type { Logger } from '../../entities/Logger.js';
 
-function stubDb(): unknown {
+function stubDb(): Database {
   const noDb = (): never => {
     throw new Error('no-db');
   };
@@ -26,12 +29,12 @@ function stubDb(): unknown {
 
 function testApplication(): Application {
   const db = stubDb();
-  const cache = {
+  const cache: Cache = {
     getStatus: (): undefined => undefined,
     setStatus: (): void => {},
     invalidate: (): void => {},
   };
-  const logger = {
+  const logger: Logger = {
     info: (): void => {},
     warn: (): void => {},
     error: (): void => {},
@@ -57,7 +60,9 @@ function testApplication(): Application {
   } as unknown as Application;
 }
 
-const svc = new SaleServiceImpl(stubDb(), { getStatus: () => undefined, setStatus: () => {}, invalidate: () => {} }, { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} });
+const stubCache: Cache = { getStatus: () => undefined, setStatus: () => {}, invalidate: () => {} };
+const stubLogger: Logger = { info: () => {}, warn: () => {}, error: () => {}, debug: () => {} };
+const svc = new SaleServiceImpl(stubDb(), stubCache, stubLogger);
 
 let app: FastifyInstance | undefined;
 

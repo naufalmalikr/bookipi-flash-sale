@@ -6,3 +6,6 @@ export interface SaleConfig {
   startsAt: Date;
   endsAt: Date;
 }
+
+/** SaleConfigRow: sale_config read model without id (repository return shape). */
+export type SaleConfigRow = Omit<SaleConfig, 'id'>;

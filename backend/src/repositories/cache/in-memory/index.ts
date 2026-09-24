@@ -1,15 +1,16 @@
-import type { Cache } from '../index.js';
-import { TTL_MS } from '../index.js';
+import type { Cache } from '../../../entities/Cache.js';
+import type { StockStatus } from '../../../entities/StockStatus.js';
+import { TTL_MS } from '../../../entities/Cache.js';
 
 interface CacheEntry {
-  value: { stockRemaining: number; totalStock: number };
+  value: StockStatus;
   expiresAt: number;
 }
 
 export class InMemoryCache implements Cache {
   private entry: CacheEntry | undefined = undefined;
 
-  getStatus(): { value: { stockRemaining: number; totalStock: number }; cached: boolean } | undefined {
+  getStatus(): { value: StockStatus; cached: boolean } | undefined {
     if (this.entry === undefined) return undefined;
     if (Date.now() > this.entry.expiresAt) {
       this.entry = undefined;
@@ -18,7 +19,7 @@ export class InMemoryCache implements Cache {
     return { value: this.entry.value, cached: true };
   }
 
-  setStatus(s: { stockRemaining: number; totalStock: number }): void {
+  setStatus(s: StockStatus): void {
     this.entry = {
       value: { stockRemaining: s.stockRemaining, totalStock: s.totalStock },
       expiresAt: Date.now() + TTL_MS,

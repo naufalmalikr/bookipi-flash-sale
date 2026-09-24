@@ -12,14 +12,19 @@
  * No raw SQL, no process.env, no Fastify imports.
  */
 
-import type { SaleService } from '../index.js';
+import type { Database } from '../../entities/Database.js';
+import type { Cache } from '../../entities/Cache.js';
+import type { Logger } from '../../entities/Logger.js';
+import type { SaleConfigRow } from '../../entities/SaleConfig.js';
+import type { SaleService } from '../../models/sale/sale.contract.js';
+import type { SaleStatusResponse } from '../../models/responses/sale.response.js';
 
 export class SaleServiceImpl implements SaleService {
-  private database: any;
-  private cache: any;
-  private logger: any;
+  private database: Database;
+  private cache: Cache;
+  private logger: Logger;
 
-  constructor(database: any, cache: any, logger: any) {
+  constructor(database: Database, cache: Cache, logger: Logger) {
     this.database = database;
     this.cache = cache;
     this.logger = logger;
@@ -35,17 +40,8 @@ export class SaleServiceImpl implements SaleService {
     return { status: 'active' };
   }
 
-  async getStatus(nowMs: number = Date.now()): Promise<{
-    status: string;
-    stockRemaining: number;
-    totalStock: number;
-    startsAt: string;
-    endsAt: string;
-    serverTime: string;
-  }> {
-    const cfg:
-      | { productName: string; stockQty: number; startsAt: Date; endsAt: Date }
-      | undefined = await this.database.getSaleConfig();
+  async getStatus(nowMs: number = Date.now()): Promise<SaleStatusResponse> {
+    const cfg: SaleConfigRow | undefined = await this.database.getSaleConfig();
     if (cfg === undefined) throw new Error('sale-not-configured');
     const { status } = this.computeSaleState(
       cfg.startsAt.getTime(),
@@ -74,17 +70,8 @@ export class SaleServiceImpl implements SaleService {
     };
   }
 
-  async buildStatusPayload(nowMs: number = Date.now()): Promise<{
-    status: string;
-    stockRemaining: number;
-    totalStock: number;
-    startsAt: string;
-    endsAt: string;
-    serverTime: string;
-  }> {
-    const cfg:
-      | { productName: string; stockQty: number; startsAt: Date; endsAt: Date }
-      | undefined = await this.database.getSaleConfig();
+  async buildStatusPayload(nowMs: number = Date.now()): Promise<SaleStatusResponse> {
+    const cfg: SaleConfigRow | undefined = await this.database.getSaleConfig();
     if (cfg === undefined) throw new Error('sale-not-configured');
     const { status } = this.computeSaleState(
       cfg.startsAt.getTime(),

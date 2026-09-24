@@ -17,7 +17,15 @@
  */
 
 import { z } from 'zod';
-import type { PurchaseService } from '../index.js';
+import type { Database } from '../../entities/Database.js';
+import type { Cache } from '../../entities/Cache.js';
+import type { Logger } from '../../entities/Logger.js';
+import type {
+  AttemptPurchaseOutput,
+  GetPurchaseOutput,
+  PurchaseCommittedEvent,
+  PurchaseService,
+} from '../../models/purchase/purchase.contract.js';
 
 /** Zod email schema feeding the purchase path (mirrors purchaseBodySchema). */
 export const userIdSchema = z.string().trim().pipe(z.email());
@@ -72,18 +80,15 @@ export function canonicalizeUserId(raw: string): string {
   return `${local}@${domain}`;
 }
 
-export type PurchaseCommittedListener = (ev: {
-  unitId: number;
-  canonicalUserId: string;
-}) => void;
+export type PurchaseCommittedListener = (ev: PurchaseCommittedEvent) => void;
 
 export class PurchaseServiceImpl implements PurchaseService {
-  private database: any;
-  private cache: any;
-  private logger: any;
+  private database: Database;
+  private cache: Cache;
+  private logger: Logger;
   private listeners = new Set<PurchaseCommittedListener>();
 
-  constructor(database: any, cache: any, logger: any) {
+  constructor(database: Database, cache: Cache, logger: Logger) {
     this.database = database;
     this.cache = cache;
     this.logger = logger;
@@ -95,16 +100,14 @@ export class PurchaseServiceImpl implements PurchaseService {
     return true;
   }
 
-  onCommitted(
-    cb: (ev: { unitId: number; canonicalUserId: string }) => void,
-  ): () => void {
+  onCommitted(cb: PurchaseCommittedListener): () => void {
     this.listeners.add(cb);
     return () => {
       this.listeners.delete(cb);
     };
   }
 
-  private broadcast(ev: { unitId: number; canonicalUserId: string }): void {
+  private broadcast(ev: PurchaseCommittedEvent): void {
     for (const cb of this.listeners) {
       try {
         cb(ev);
@@ -114,18 +117,7 @@ export class PurchaseServiceImpl implements PurchaseService {
     }
   }
 
-  async attemptPurchase(rawUserId: string): Promise<
-    | { ok: true; unitId: number }
-    | {
-        ok: false;
-        error:
-          | 'invalid-userId'
-          | 'sale-not-active'
-          | 'already-purchased'
-          | 'sold-out'
-          | 'internal-error';
-      }
-  > {
+  async attemptPurchase(rawUserId: string): Promise<AttemptPurchaseOutput> {
     let canonical: string;
     try {
       canonical = canonicalizeUserId(rawUserId);
@@ -178,16 +170,12 @@ export class PurchaseServiceImpl implements PurchaseService {
       if (msg === 'already-purchased') {
         return { ok: false, error: 'already-purchased' };
       }
-      this.logger?.error?.({ err }, 'purchase attempt failed');
+      this.logger.error('purchase attempt failed', err);
       return { ok: false, error: 'internal-error' };
     }
   }
 
-  async getPurchaseByUser(rawUserId: string): Promise<
-    | { found: true; unitId: number }
-    | { found: false }
-    | { error: 'invalid-userId' }
-  > {
+  async getPurchaseByUser(rawUserId: string): Promise<GetPurchaseOutput> {
     let canonical: string;
     try {
       canonical = canonicalizeUserId(rawUserId);
