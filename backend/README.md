@@ -92,6 +92,10 @@ sequenceDiagram
     Main->>HTTP: register sale + purchase routes, listen 0.0.0.0:PORT
 ```
 
+Restarting the backend re-opens the sale window: `upsertSaleConfig` overwrites
+`starts_at`/`ends_at` from env on every boot. Correct for a single-shot demo,
+surprising in production — a restart during `ended` would revive the sale.
+
 ## Data model
 
 | Table | Columns | Constraint |

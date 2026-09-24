@@ -38,10 +38,6 @@ function isoAt(offsetMs: number): string {
 
 function buildTestApplication(): { application: Application; client: PgClient } {
   const client = new PgClient({ connectionString: CONNECTION_STRING });
-  const raw = {
-    query: <T>(text: string, params?: unknown[]): Promise<{ rows: T[]; rowCount: number | null }> =>
-      client.query(text, params as unknown[]) as unknown as Promise<{ rows: T[]; rowCount: number | null }>,
-  };
   const config = {
     port: 0,
     databaseUrl: CONNECTION_STRING,
@@ -52,7 +48,6 @@ function buildTestApplication(): { application: Application; client: PgClient } 
     rateLimitBuy: 100000,
     poolMax: 10,
   };
-  void raw;
   const database = new PostgresDatabase(config);
   const cache = new InMemoryCache();
   const logger = new ConsoleLogger();

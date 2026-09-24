@@ -58,6 +58,9 @@ it deletes the Postgres volume that holds the stress proof).
 Compose is the supported path, though both apps also run on the host.
 Postgres stays in Docker either way (host port `5432` is mapped, so
 host-side code can reach it at `localhost:5432`).
+Compose serves the Vite **dev** server on `:5173`, not a production build
+(`frontend/Dockerfile` runs `npm run dev`); `npm --prefix frontend run build`
+is the prod-bundle check.
 
 ```sh
 docker compose up --build -d          # full stack
