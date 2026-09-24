@@ -11,30 +11,42 @@ function formatStatus(payload: SaleStatusResponse): string {
 const TICK_MS = 2000;
 const HEARTBEAT_MS = 15000;
 
-const clients = new Set<ServerResponse>();
+interface SseHub {
+  clients: Set<ServerResponse>;
+  tickTimer: ReturnType<typeof setInterval> | undefined;
+  heartbeatTimer: ReturnType<typeof setInterval> | undefined;
+  unsubscribePurchase: (() => void) | undefined;
+  lastStatus: string | undefined;
+}
 
-let tickTimer: ReturnType<typeof setInterval> | undefined;
-let heartbeatTimer: ReturnType<typeof setInterval> | undefined;
-let unsubscribePurchase: (() => void) | undefined;
-let lastStatus: string | undefined;
+function createSseHub(): SseHub {
+  return {
+    clients: new Set<ServerResponse>(),
+    tickTimer: undefined,
+    heartbeatTimer: undefined,
+    unsubscribePurchase: undefined,
+    lastStatus: undefined,
+  };
+}
 
 async function tickAndFanOut(
+  hub: SseHub,
   application: Application,
   logInfo: (msg: string) => void,
 ): Promise<void> {
-  if (clients.size === 0) return;
+  if (hub.clients.size === 0) return;
   let payload: SaleStatusResponse;
   try {
     payload = await application.saleService.buildStatusPayload();
   } catch {
     return;
   }
-  if (lastStatus !== undefined && payload.status !== lastStatus) {
-    logInfo(`[sse] window transition ${lastStatus} -> ${payload.status}`);
+  if (hub.lastStatus !== undefined && payload.status !== hub.lastStatus) {
+    logInfo(`[sse] window transition ${hub.lastStatus} -> ${payload.status}`);
   }
-  lastStatus = payload.status;
+  hub.lastStatus = payload.status;
   const frame = formatStatus(payload);
-  for (const res of clients) {
+  for (const res of hub.clients) {
     try {
       res.write(frame);
     } catch {
@@ -43,46 +55,55 @@ async function tickAndFanOut(
 }
 
 function ensureTimers(
+  hub: SseHub,
   application: Application,
   logInfo: (msg: string) => void,
 ): void {
-  if (tickTimer !== undefined) return;
-  unsubscribePurchase = application.purchaseService.onCommitted(() => {
-    void tickAndFanOut(application, logInfo);
+  if (hub.tickTimer !== undefined) return;
+  hub.unsubscribePurchase = application.purchaseService.onCommitted(() => {
+    void tickAndFanOut(hub, application, logInfo);
   });
-  tickTimer = setInterval(() => {
-    void tickAndFanOut(application, logInfo);
+  hub.tickTimer = setInterval(() => {
+    void tickAndFanOut(hub, application, logInfo);
   }, TICK_MS);
-  tickTimer.unref();
-  heartbeatTimer = setInterval(() => {
-    for (const res of clients) {
+  hub.tickTimer.unref();
+  hub.heartbeatTimer = setInterval(() => {
+    for (const res of hub.clients) {
       try {
         res.write(':heartbeat\n\n');
       } catch {
       }
     }
   }, HEARTBEAT_MS);
-  heartbeatTimer.unref();
+  hub.heartbeatTimer.unref();
 }
 
-function maybeStopTimers(): void {
-  if (clients.size > 0) return;
-  if (tickTimer !== undefined) {
-    clearInterval(tickTimer);
-    tickTimer = undefined;
+function maybeStopTimers(hub: SseHub): void {
+  if (hub.clients.size > 0) return;
+  if (hub.tickTimer !== undefined) {
+    clearInterval(hub.tickTimer);
+    hub.tickTimer = undefined;
   }
-  if (heartbeatTimer !== undefined) {
-    clearInterval(heartbeatTimer);
-    heartbeatTimer = undefined;
+  if (hub.heartbeatTimer !== undefined) {
+    clearInterval(hub.heartbeatTimer);
+    hub.heartbeatTimer = undefined;
   }
-  if (unsubscribePurchase !== undefined) {
-    unsubscribePurchase();
-    unsubscribePurchase = undefined;
+  if (hub.unsubscribePurchase !== undefined) {
+    hub.unsubscribePurchase();
+    hub.unsubscribePurchase = undefined;
   }
-  lastStatus = undefined;
+  hub.lastStatus = undefined;
 }
 
 export function registerSaleRoutes(fastify: FastifyInstance, application: Application): void {
+  // Per-server hub: two apps in one process must not share clients/timers.
+  const hub = createSseHub();
+  fastify.addHook('onClose', (_instance, done) => {
+    hub.clients.clear();
+    maybeStopTimers(hub);
+    done();
+  });
+
   fastify.get('/api/sale/status', (_req, reply) => {
     void (async () => {
       try {
@@ -124,13 +145,13 @@ export function registerSaleRoutes(fastify: FastifyInstance, application: Applic
         'Cache-Control': 'no-cache',
         Connection: 'keep-alive',
       });
-      lastStatus = initial.status;
+      hub.lastStatus = initial.status;
       raw.write(formatStatus(initial));
-      clients.add(raw);
-      ensureTimers(application, logInfo);
+      hub.clients.add(raw);
+      ensureTimers(hub, application, logInfo);
       req.raw.on('close', () => {
-        clients.delete(raw);
-        maybeStopTimers();
+        hub.clients.delete(raw);
+        maybeStopTimers(hub);
       });
     })();
   });

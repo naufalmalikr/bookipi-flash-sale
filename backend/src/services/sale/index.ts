@@ -1,8 +1,7 @@
 /**
  * SaleServiceImpl: owns window gate + status composition.
  *
- * - computeSaleState: pure boundary math, verbatim from
- *   backend/src/services/sale.ts (inclusive on both ends).
+ * - computeSaleState: pure boundary math, inclusive on both ends.
  * - getStatus: authoritative sale_config read via database.getSaleConfig()
  *   (throw sale-not-configured if missing), status via Date.now(), then
  *   cache.getStatus() when totalStock matches else database.countAvailable(1)

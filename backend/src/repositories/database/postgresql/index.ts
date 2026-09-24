@@ -108,7 +108,8 @@ export class PostgresDatabase implements Database {
       client = await this.pool.connect();
       await client.query('BEGIN');
       const win = await client.query<{ starts_at: Date; ends_at: Date }>(
-        `SELECT starts_at, ends_at FROM sale_config WHERE id = 1`,
+        `SELECT starts_at, ends_at FROM sale_config WHERE id = $1`,
+        [saleId],
       );
       const winRow = win.rows[0];
       if (winRow === undefined) {
@@ -123,8 +124,9 @@ export class PostgresDatabase implements Database {
       }
       const claimed = await client.query<{ id: number }>(
         `SELECT id FROM stock_units
-          WHERE sale_id = 1 AND status = 'available'
+          WHERE sale_id = $1 AND status = 'available'
           ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1`,
+        [saleId],
       );
       const unitRow = claimed.rows[0];
       if (unitRow === undefined) {
@@ -138,11 +140,10 @@ export class PostgresDatabase implements Database {
       );
       await client.query(
         `INSERT INTO purchases (sale_id, canonical_user_id, unit_id, raw_user_id)
-         VALUES (1, $1, $2, $3)`,
-        [canonical, unitId, rawUserId],
+         VALUES ($1, $2, $3, $4)`,
+        [saleId, canonical, unitId, rawUserId],
       );
       await client.query('COMMIT');
-      void saleId;
       return { ok: true, unitId };
     } catch (err) {
       try {

@@ -9,8 +9,8 @@
  *   5. on success: cache.invalidate() + broadcast to listeners
  *   6. catch-all -> internal-error
  *
- * Canonicalization is backend-authoritative, copied verbatim from
- * backend/src/utils/canonicalize.ts: trim + lowercase always; Gmail-only
+ * Canonicalization is backend-authoritative and lives in this file
+ * (canonicalizeUserId below): trim + lowercase always; Gmail-only
  * (gmail.com | googlemail.com -> gmail.com): strip dots, strip +tag.
  *
  * No raw SQL, no process.env, no Fastify imports.

@@ -146,7 +146,7 @@ Notes:
   status on every purchase commit, window transition, and ~2s tick — one
   `COUNT` query serves all connected clients instead of N polls.
 - **Canonicalization is backend-authoritative:** `canonicalizeUserId()` lives in
-  the backend (`backend/src/utils/canonicalize.ts`) and is applied to both
+  the backend (`backend/src/services/purchase/index.ts (canonicalizeUserId)`) and is applied to both
   `POST /api/purchase` bodies and `GET /api/purchase/:userId` params before any
   DB lookup; the Postgres UNIQUE constraint is on `canonical_user_id`. The
   frontend sends the raw email as-is (may `trim()` for UX only) and MUST NOT

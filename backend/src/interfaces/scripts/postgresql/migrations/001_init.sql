@@ -1,5 +1,5 @@
 -- Flash-sale schema (Todo 3).
--- Run: psql "$DATABASE_URL" -f backend/src/db/schema.sql
+-- Run: psql "$DATABASE_URL" -f backend/src/interfaces/scripts/postgresql/migrations/001_init.sql
 -- Idempotent: safe to re-run (CREATE TABLE / INDEX IF NOT EXISTS).
 
 SET statement_timeout = '5s';

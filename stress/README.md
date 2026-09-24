@@ -23,9 +23,9 @@ k6 VUs share the runner's source IP (single NAT), so a per-IP limit of
 the limiter, not the claim path. The bypass is a boot-time switch, not a
 logic change:
 
-- `backend/src/env.ts`: `RATE_LIMIT_BUY=0` (or negative) parses to `0` =
+- `backend/src/Config.ts`: `RATE_LIMIT_BUY=0` (or negative) parses to `0` =
   disabled; positive integers set max req/min/IP; non-numeric → default 10.
-- `backend/src/routes/purchase.ts`: when `rateLimitBuy <= 0` the route is
+- `backend/src/interfaces/http/handlers/api/purchase/index.ts`: when `rateLimitBuy <= 0` the route is
   registered **without** a `config.rateLimit` block; the claim transaction,
   window gate, canonicalization, and error envelope are untouched.
 
@@ -102,7 +102,7 @@ SELECT unit_id, count(*) FROM purchases
 
 Proof run: `stress/results-summary.json` (committed census: 100x201 /
 124,884x409 / 0 other + SQL counts) + log
-`.omo/evidence/task-14-flash-sale-build.log` (k6 version, boot env, run
+`stress/evidence/k6-proof-excerpt.md` (k6 version, boot env, run
 output, SQL counts). Raw `stress/results.json` (~470MB) is git-ignored and
 reproducible via the Run section above. Final DB state is the consumed proof itself
 (100/100 sold); do NOT reseed after the proof — reseeding would erase it.

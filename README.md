@@ -225,7 +225,7 @@ Current repo state: the durable k6 proof is `stress/results-summary.json`
 `sold == 100`; 0 duplicate canonical users / unit ids; 100 distinct emails;
 k6 exit 0, `checks` 249,968/249,968). The live Postgres volume is ephemeral
 (`down -v` wipes it; integration runs reseed it) — treat the summary JSON +
-`.omo/evidence/task-14-flash-sale-build.log` as the durable record, not the
+`stress/evidence/k6-proof-excerpt.md` as the durable record, not the
 container's current rows. A fresh reviewer run reproduces the numbers from a
 clean seed instead.
 
