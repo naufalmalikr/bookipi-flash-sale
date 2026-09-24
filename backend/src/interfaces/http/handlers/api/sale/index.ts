@@ -82,8 +82,8 @@ function maybeStopTimers(): void {
   lastStatus = undefined;
 }
 
-export function registerSaleRoutes(app: FastifyInstance, application: Application): void {
-  app.get('/api/sale/status', (_req, reply) => {
+export function registerSaleRoutes(fastify: FastifyInstance, application: Application): void {
+  fastify.get('/api/sale/status', (_req, reply) => {
     void (async () => {
       try {
         const payload: SaleStatusResponse = await application.saleService.getStatus();
@@ -102,7 +102,7 @@ export function registerSaleRoutes(app: FastifyInstance, application: Applicatio
     })();
   });
 
-  app.get('/api/sale/events', (req, reply) => {
+  fastify.get('/api/sale/events', (req, reply) => {
     void (async () => {
       const logInfo = (msg: string): void => {
         req.log.info(msg);

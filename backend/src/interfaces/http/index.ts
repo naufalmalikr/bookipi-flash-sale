@@ -21,9 +21,9 @@ function isZodValidationError(err: unknown): err is Error & ZodValidationMarker 
 }
 
 export async function buildHttpServer(application: Application): Promise<FastifyInstance> {
-  const app = Fastify({ logger: true });
+  const fastify = Fastify({ logger: true });
 
-  app.setValidatorCompiler(({ schema }) => {
+  fastify.setValidatorCompiler(({ schema }) => {
     return (data: unknown) => {
       const zodSchema = schema as z.ZodType;
       const parsed = zodSchema.safeParse(data);
@@ -39,8 +39,8 @@ export async function buildHttpServer(application: Application): Promise<Fastify
   });
 
   await Promise.all([
-    app.register(cors, { origin: true }),
-    app.register(rateLimit, {
+    fastify.register(cors, { origin: true }),
+    fastify.register(rateLimit, {
       global: false,
       errorResponseBuilder: (_req: FastifyRequest, context: { after: string }) =>
         Object.assign(new Error(`Rate limit exceeded, retry in ${context.after}`), {
@@ -50,7 +50,7 @@ export async function buildHttpServer(application: Application): Promise<Fastify
     }),
   ]);
 
-  app.setErrorHandler((err: FastifyError, _req, reply) => {
+  fastify.setErrorHandler((err: FastifyError, _req, reply) => {
     if (isZodValidationError(err)) {
       void reply
         .code(400)
@@ -88,16 +88,16 @@ export async function buildHttpServer(application: Application): Promise<Fastify
     void reply.code(500).send(envelope('internal-error', 'Internal server error'));
   });
 
-  app.setNotFoundHandler((_req, reply) => {
+  fastify.setNotFoundHandler((_req, reply) => {
     void reply.code(404).send(envelope('not-found', 'Route not found'));
   });
 
-  app.get('/health', () => ({ ok: true }));
+  fastify.get('/health', () => ({ ok: true }));
 
-  registerSaleRoutes(app, application);
-  registerPurchaseRoutes(app, application);
+  registerSaleRoutes(fastify, application);
+  registerPurchaseRoutes(fastify, application);
 
-  return app;
+  return fastify;
 }
 
 export async function startHttp(application: Application): Promise<FastifyInstance> {

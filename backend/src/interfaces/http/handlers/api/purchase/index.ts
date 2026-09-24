@@ -7,8 +7,8 @@ import type {
   GetPurchaseOutput,
 } from '../../../../../models/purchase/purchase.contract.js';
 
-export function registerPurchaseRoutes(app: FastifyInstance, application: Application): void {
-  app.get('/api/purchase/:userId', (req, reply) => {
+export function registerPurchaseRoutes(fastify: FastifyInstance, application: Application): void {
+  fastify.get('/api/purchase/:userId', (req, reply) => {
     void (async () => {
       const rawUserId = (req.params as { userId: string }).userId;
       let result: GetPurchaseOutput;
@@ -45,7 +45,7 @@ export function registerPurchaseRoutes(app: FastifyInstance, application: Applic
         }
       : { schema: { body: purchaseBodySchema } };
 
-  app.post('/api/purchase', buyRouteOptions, (req, reply) => {
+  fastify.post('/api/purchase', buyRouteOptions, (req, reply) => {
     void (async () => {
       const rawUserId = (req.body as { userId: string }).userId;
       let outcome: AttemptPurchaseOutput;
