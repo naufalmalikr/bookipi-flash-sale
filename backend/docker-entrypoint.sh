@@ -8,7 +8,14 @@ set -u
 echo "[entrypoint] waiting for postgres (DATABASE_URL=${DATABASE_URL:-unset})..."
 attempt=0
 delay=1
-while ! node /app/backend/wait-for-db.mjs; do
+probe_ok() {
+  if [ -f /app/backend/dist/interfaces/scripts/postgresql/probe.js ]; then
+    node /app/backend/dist/interfaces/scripts/postgresql/probe.js
+  else
+    node --experimental-strip-types /app/backend/src/interfaces/scripts/postgresql/probe.ts
+  fi
+}
+while ! probe_ok; do
   attempt=$((attempt + 1))
   echo "[entrypoint] postgres unreachable (attempt ${attempt}), retrying in ${delay}s (backoff, no crash-loop)"
   sleep "${delay}"

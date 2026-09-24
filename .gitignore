@@ -144,6 +144,7 @@ vite.config.ts.timestamp-*
 
 # Development
 .omo
+.tmp
 
 # k6 raw results (hundreds of MB; summary committed as stress/results-summary.json)
 stress/results.json
