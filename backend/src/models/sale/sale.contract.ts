@@ -16,13 +16,3 @@ export interface GetStatusInput {
 }
 
 export type GetStatusOutput = SaleStatusResponse;
-
-export interface SaleService {
-  computeSaleState(
-    s: number,
-    e: number,
-    n: number,
-  ): { status: 'upcoming' | 'active' | 'ended' };
-  getStatus(nowMs?: number): Promise<SaleStatusResponse>;
-  buildStatusPayload(nowMs?: number): Promise<SaleStatusResponse>;
-}
