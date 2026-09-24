@@ -2,7 +2,7 @@ import http from 'node:http';
 import { Client as PgClient } from 'pg';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { buildApp } from './index.js';
+import { buildHttpServer } from './index.js';
 import type { Application } from '../../Application.js';
 import { PostgresDatabase } from '../../repositories/database/postgresql/index.js';
 import { InMemoryCache } from '../../repositories/cache/in-memory/index.js';
@@ -121,7 +121,7 @@ beforeAll(async () => {
   application = built.application;
   client = built.client;
   await client.connect();
-  app = await buildApp(application);
+  app = await buildHttpServer(application);
 });
 
 afterAll(async () => {
@@ -242,7 +242,7 @@ describe('SSE event delivery on purchase', () => {
     const built = buildTestApplication();
     const sseClient = built.client;
     await sseClient.connect();
-    const sseApp: FastifyInstance = await buildApp(built.application);
+    const sseApp: FastifyInstance = await buildHttpServer(built.application);
     await sseApp.listen({ port: 0, host: '127.0.0.1' });
     const addr = sseApp.server.address();
     const port = typeof addr === 'object' && addr !== null ? addr.port : 0;

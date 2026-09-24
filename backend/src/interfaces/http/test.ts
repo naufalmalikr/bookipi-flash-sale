@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
-import { buildApp } from './index.js';
+import { buildHttpServer } from './index.js';
 import type { Application } from '../../Application.js';
 import { SaleServiceImpl } from '../../services/sale/index.js';
 import { PurchaseServiceImpl, canonicalizeUserId } from '../../services/purchase/index.js';
@@ -75,7 +75,7 @@ afterEach(async () => {
 
 describe('error envelope via app.inject (no DB, no listen)', () => {
   it('unknown route -> 404 not-found envelope', async () => {
-    app = await buildApp(testApplication());
+    app = await buildHttpServer(testApplication());
     const res = await app.inject({ method: 'GET', url: '/no-such-route' });
     expect(res.statusCode).toBe(404);
     const body = res.json() as { error: string; message: string };
@@ -84,14 +84,14 @@ describe('error envelope via app.inject (no DB, no listen)', () => {
   });
 
   it('GET /health stays 200 (envelope paths do not break happy paths)', async () => {
-    app = await buildApp(testApplication());
+    app = await buildHttpServer(testApplication());
     const res = await app.inject({ method: 'GET', url: '/health' });
     expect(res.statusCode).toBe(200);
     expect(res.json()).toEqual({ ok: true });
   });
 
   it('malformed JSON POST -> 400 bad-request envelope (never 500)', async () => {
-    app = await buildApp(testApplication());
+    app = await buildHttpServer(testApplication());
     const res = await app.inject({
       method: 'POST',
       url: '/api/purchase',
@@ -105,7 +105,7 @@ describe('error envelope via app.inject (no DB, no listen)', () => {
   });
 
   it('invalid purchase body -> 400 invalid-userId envelope (Zod fails pre-handler, no DB hit)', async () => {
-    app = await buildApp(testApplication());
+    app = await buildHttpServer(testApplication());
     for (const payload of [
       { userId: 'not-an-email' },
       { userId: '' },
@@ -126,7 +126,7 @@ describe('error envelope via app.inject (no DB, no listen)', () => {
   });
 
   it('invalid GET /api/purchase/:userId param -> 400 invalid-userId envelope (no DB hit)', async () => {
-    app = await buildApp(testApplication());
+    app = await buildHttpServer(testApplication());
     const res = await app.inject({
       method: 'GET',
       url: '/api/purchase/not-an-email',
@@ -137,7 +137,7 @@ describe('error envelope via app.inject (no DB, no listen)', () => {
   });
 
   it('wrong-method on purchase route -> 404 not-found envelope', async () => {
-    app = await buildApp(testApplication());
+    app = await buildHttpServer(testApplication());
     const res = await app.inject({ method: 'DELETE', url: '/api/purchase' });
     expect(res.statusCode).toBe(404);
     expect((res.json() as { error: string }).error).toBe('not-found');
