@@ -99,7 +99,7 @@
 
 ## Tests + stress
 
-- `npm --prefix backend run test` — unit 4 files/38 tests (canonical vectors, window bounds, error map, Zod schemas).
+- `npm --prefix backend run test` — unit 7 files/46 tests (canonical vectors, window bounds, error map, Zod schemas).
 - `npm --prefix backend run test:integration` — vs real PG 18.6 in Docker: lifecycle `upcoming→active→ended`, Gmail-variant `409`, sold-out, SSE delivery, 5-stock/50-parallel exact-5 probe (exactly five `201`, rest `409`, no dup users/units).
 - `npm run migrate` / `npm run seed` — apply `001_init.sql` / upsert config + converge units.
 - Stress `stress/purchase-spike.js`: `ramping-vus` 0→200 (20s) →1000 (30s) →hold 1000 (30s) →down (10s), ~90s in 10-min ACTIVE window, `STOCK_QTY=100`, `RATE_LIMIT_BUY=0`.

@@ -2,7 +2,7 @@
 
 TL;DR: 1,000 buyers fight for 100 units, every claim runs through Postgres, and the count lands at exactly 100 sold with zero oversell.
 
-> Repo: `https://github.com/<your-org>/bookipi-flash-sale` (placeholder, replace with the real remote).
+> Repo: https://github.com/naufalmalikr/bookipi-flash-sale
 
 ## Prerequisites
 
@@ -176,7 +176,7 @@ sold-out path, SSE delivery on purchase, and a 5-stock/50-parallel exact-5
 probe (exactly 5 `201`s, `sold <= 5`, uniqueness holds).
 
 ```sh
-npm --prefix backend run test              # unit, 4 files / 38 tests green
+npm --prefix backend run test              # unit, 7 files / 46 tests green
 npm --prefix backend run test:integration  # integration vs real PG, 6 tests green
 ```
 
