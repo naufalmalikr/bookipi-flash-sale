@@ -6,47 +6,14 @@ import {
   eventsUrl,
   type StatusPayload,
 } from './api';
+import { toneFor, formatDelta } from './display';
 
 type FeedState = 'connecting' | 'live-sse' | 'polling';
 
 interface Alert {
-  /** Server code rendered verbatim (e.g. purchased, already-purchased). */
   code: string;
   message: string;
   tone: string;
-}
-
-function toneFor(code: string): string {
-  switch (code) {
-    case 'purchased':
-      return 'alert-success';
-    case 'already-purchased':
-      return 'alert-repeat';
-    case 'sold-out':
-      return 'alert-soldout';
-    case 'sale-not-active':
-      return 'alert-inactive';
-    case 'invalid-userId':
-      return 'alert-invalid';
-    case 'rate-limited':
-      return 'alert-rate';
-    case 'not-purchased':
-      return 'alert-notpurchased';
-    default:
-      return 'alert-error';
-  }
-}
-
-function formatDelta(ms: number): string {
-  if (ms < 0) ms = 0;
-  const s = Math.floor(ms / 1000);
-  const d = Math.floor(s / 86400);
-  const h = Math.floor((s % 86400) / 3600);
-  const m = Math.floor((s % 3600) / 60);
-  const sec = s % 60;
-  const pad = (n: number): string => String(n).padStart(2, '0');
-  if (d > 0) return `${String(d)}d ${pad(h)}h ${pad(m)}m ${pad(sec)}s`;
-  return `${pad(h)}:${pad(m)}:${pad(sec)}`;
 }
 
 const MAX_BACKOFF_MS = 10000;
@@ -62,7 +29,6 @@ export default function App(): React.JSX.Element {
   const [, setNowTick] = useState<number>(Date.now());
   const clockOffset = useRef(0);
 
-  // 1s local tick so the countdown moves without server round-trips.
   useEffect(() => {
     const t = setInterval(() => {
       setNowTick(Date.now());
@@ -72,8 +38,6 @@ export default function App(): React.JSX.Element {
     };
   }, []);
 
-  // Initial GET /api/sale/status + EventSource primary with backoff reconnect
-  // and <=5s status-poll fallback while the stream is down.
   useEffect(() => {
     let stopped = false;
     let es: EventSource | null = null;
@@ -143,8 +107,6 @@ export default function App(): React.JSX.Element {
         } catch {
           return;
         }
-        // Successful SSE message: stream is healthy — stop poll fallback,
-        // reset backoff.
         backoff = 1000;
         stopPollFallback();
         if (!stopped) setFeed('live-sse');
@@ -157,7 +119,6 @@ export default function App(): React.JSX.Element {
         }
         if (es === source) es = null;
         if (stopped) return;
-        // Stream down: close + backoff reconnect + 5s status poll fallback.
         startPollFallback();
         scheduleReconnect(connect);
       };
@@ -189,7 +150,6 @@ export default function App(): React.JSX.Element {
 
   async function onBuy(e: React.FormEvent): Promise<void> {
     e.preventDefault();
-    // UX trim ONLY — no Gmail dot/+tag stripping (backend-authoritative).
     const userId = email.trim();
     if (userId === '') {
       setAlert({ code: 'invalid-userId', message: 'Enter an email address', tone: toneFor('invalid-userId') });
@@ -200,13 +160,10 @@ export default function App(): React.JSX.Element {
     try {
       const post = await postPurchase(userId);
       if (post.ok) {
-        // Success renders from the POST body: the unit is already consumed,
-        // so a transient confirm/status failure must never mask it. Both
-        // follow-ups are best-effort background refreshes only.
         const unitId = post.body.unitId;
         setAlert({
           code: 'purchased',
-          message: `Secured unit #${String(unitId)}`,
+          message: 'Secured unit #' + String(unitId),
           tone: toneFor('purchased'),
         });
         void (async () => {
@@ -215,7 +172,7 @@ export default function App(): React.JSX.Element {
             if (confirm.ok && confirm.body.unitId !== unitId) {
               setAlert({
                 code: 'purchased',
-                message: `Secured unit #${String(unitId)} (lookup shows #${String(confirm.body.unitId)})`,
+                message: 'Secured unit #' + String(unitId) + ' (lookup shows #' + String(confirm.body.unitId) + ')',
                 tone: toneFor('purchased'),
               });
             }
@@ -232,7 +189,6 @@ export default function App(): React.JSX.Element {
           }
         })();
       } else {
-        // Server error code rendered verbatim with distinct styling.
         setAlert({ code: post.error, message: post.message, tone: toneFor(post.error) });
       }
     } catch (err) {
@@ -250,9 +206,9 @@ export default function App(): React.JSX.Element {
   let countdown = '—';
   if (payload !== null) {
     if (payload.status === 'upcoming') {
-      countdown = `starts in ${formatDelta(Date.parse(payload.startsAt) - serverNow)}`;
+      countdown = 'starts in ' + formatDelta(Date.parse(payload.startsAt) - serverNow);
     } else if (payload.status === 'active') {
-      countdown = `ends in ${formatDelta(Date.parse(payload.endsAt) - serverNow)}`;
+      countdown = 'ends in ' + formatDelta(Date.parse(payload.endsAt) - serverNow);
     } else {
       countdown = 'sale ended';
     }
@@ -264,15 +220,15 @@ export default function App(): React.JSX.Element {
 
       <section className="panel" aria-label="sale status">
         <div className="row">
-          <span className={`pill pill-${payload?.status ?? 'unknown'}`}>
+          <span className={'pill pill-' + (payload?.status ?? 'unknown')}>
             {payload?.status ?? 'loading…'}
           </span>
-          <span className={`feed feed-${feed}`} title="update channel">
+          <span className={'feed feed-' + feed} title="update channel">
             {feed === 'live-sse' ? '● live' : feed === 'polling' ? '● polling fallback' : '● connecting…'}
           </span>
         </div>
         <div className="stock">
-          {payload === null ? '—' : `${String(payload.stockRemaining)} / ${String(payload.totalStock)} remaining`}
+          {payload === null ? '—' : String(payload.stockRemaining) + ' / ' + String(payload.totalStock) + ' remaining'}
         </div>
         <div className="countdown">{payload === null ? 'loading status…' : countdown}</div>
         {loadError !== null && <div className="load-error">{loadError}</div>}
@@ -300,7 +256,7 @@ export default function App(): React.JSX.Element {
           </button>
         </form>
         {alert !== null && (
-          <div className={`result ${alert.tone}`} role="alert">
+          <div className={'result ' + alert.tone} role="alert">
             <code className="code">[{alert.code}]</code> <span>{alert.message}</span>
           </div>
         )}

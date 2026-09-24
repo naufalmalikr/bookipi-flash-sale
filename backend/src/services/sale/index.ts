@@ -57,7 +57,7 @@ export class SaleServiceImpl implements SaleService {
     if (hit !== undefined && hit.value.totalStock === totalStock) {
       stockRemaining = hit.value.stockRemaining;
     } else {
-      this.logger?.info?.('[status] cache miss: countAvailable');
+      this.logger.info('[status] cache miss: countAvailable');
       stockRemaining = await this.database.countAvailable(1);
       this.cache.setStatus({ stockRemaining, totalStock });
     }

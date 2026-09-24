@@ -236,6 +236,38 @@ describe('sold-out path', () => {
   });
 });
 
+describe('same-user concurrent duplicate at exact exhaustion', () => {
+  it('one 201 + one 409 already-purchased, never sold-out for the buyer', async () => {
+    await resetDb(client, application.cache, 1, isoAt(-60_000), isoAt(600_000));
+    const attempts = await Promise.all([
+      app.inject({
+        method: 'POST',
+        url: '/api/purchase',
+        payload: { userId: 'twin@example.com' },
+      }),
+      app.inject({
+        method: 'POST',
+        url: '/api/purchase',
+        payload: { userId: 'twin@example.com' },
+      }),
+    ]);
+    const won = attempts.filter((r) => r.statusCode === 201);
+    const dupes = attempts.filter(
+      (r) => r.statusCode === 409 && (JSON.parse(r.body) as ErrBody).error === 'already-purchased',
+    );
+    const sold = await countOf(
+      client,
+      `SELECT COUNT(*)::text AS n FROM stock_units WHERE sale_id = 1 AND status = 'sold'`,
+    );
+    console.log(
+      `[integration] m1: won=${String(won.length)} dupes=${String(dupes.length)} sold=${String(sold)} (expect 1/1/1)`,
+    );
+    expect(won.length).toBe(1);
+    expect(dupes.length).toBe(1);
+    expect(sold).toBe(1);
+  });
+});
+
 describe('SSE event delivery on purchase', () => {
   it('streams >=2 status frames and one with decremented stockRemaining', async () => {
     await resetDb(client, application.cache, 3, isoAt(-60_000), isoAt(600_000));

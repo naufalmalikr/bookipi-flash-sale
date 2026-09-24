@@ -16,7 +16,6 @@
  * No raw SQL, no process.env, no Fastify imports.
  */
 
-import { z } from 'zod';
 import type { Database } from '../../repositories/database/index.js';
 import type { Cache } from '../../repositories/cache/index.js';
 import type { Logger } from '../../repositories/logger/index.js';
@@ -27,9 +26,6 @@ import type {
   PurchaseCommittedEvent,
   PurchaseCommittedListener,
 } from '../../models/purchase/purchase.contract.js';
-
-/** Zod email schema feeding the purchase path (mirrors purchaseBodySchema). */
-export const userIdSchema = z.string().trim().pipe(z.email());
 
 const GMAIL_DOMAINS = new Set(['gmail.com', 'googlemail.com']);
 
@@ -160,14 +156,11 @@ export class PurchaseServiceImpl implements PurchaseService {
       this.broadcast({ unitId: claimed.unitId, canonicalUserId: canonical });
       return { ok: true, unitId: claimed.unitId };
     } catch (err) {
-      // Same-user race that slipped past the fast-path surfaces as a
-      // unique-violation message from the repository claim path.
+      // In-txn window re-gate surfaces as a thrown message from the
+      // repository claim path (returned outcomes never throw).
       const msg = err instanceof Error ? err.message : '';
       if (msg === 'sale-not-active') {
         return { ok: false, error: 'sale-not-active' };
-      }
-      if (msg === 'already-purchased') {
-        return { ok: false, error: 'already-purchased' };
       }
       this.logger.error('purchase attempt failed', err);
       return { ok: false, error: 'internal-error' };

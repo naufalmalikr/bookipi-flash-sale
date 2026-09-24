@@ -104,8 +104,29 @@ export async function startHttp(application: Application): Promise<FastifyInstan
   const fastify = await buildHttpServer(application);
   await fastify.listen({ host: '0.0.0.0', port: application.config.port });
   application.logger.info(
-    `[boot] listening on 0.0.0.0:${String(application.config.port)} ` +
-    `sale=${application.config.saleStart}..${application.config.saleEnd}`,
+    `[boot] listening on 0.0.0.0:${String(application.config.port)} sale=${application.config.saleStart}..${application.config.saleEnd}`,
   );
+  let closing = false;
+  async function shutdown(signal: string): Promise<void> {
+    if (closing) return;
+    closing = true;
+    application.logger.info(`[shutdown] ${signal} received, draining`);
+    try {
+      await fastify.close();
+    } catch (err) {
+      application.logger.error('[shutdown] fastify.close failed', err);
+    }
+    try {
+      await application.database.close();
+    } catch (err) {
+      application.logger.error('[shutdown] pool.end failed', err);
+    }
+    process.exit(0);
+  }
+  for (const signal of ['SIGTERM', 'SIGINT'] as const) {
+    process.once(signal, () => {
+      void shutdown(signal);
+    });
+  }
   return fastify;
 }

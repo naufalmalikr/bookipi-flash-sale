@@ -170,14 +170,18 @@ so any drift means the doc is stale, not the build.
 ## Tests
 
 Unit suites cover canonicalization vectors, window-gate boundaries, error-code
-mapping, and Zod schemas. Integration suites run against real Postgres 18.6 in
-Docker: lifecycle (`upcoming` to `active` to `ended`), Gmail-variant `409`,
-sold-out path, SSE delivery on purchase, and a 5-stock/50-parallel exact-5
-probe (exactly 5 `201`s, `sold <= 5`, uniqueness holds).
+mapping, and Zod schemas. Frontend covers pure display helpers (`toneFor`,
+`formatDelta`) with Vitest. Integration suites run against real Postgres 18.6
+in Docker: lifecycle (`upcoming` to `active` to `ended`), Gmail-variant `409`,
+sold-out path, same-user concurrent duplicate at exact exhaustion (one `201` +
+one `409 already-purchased`), SSE delivery on purchase, 5-stock/50-parallel
+exact-5 probe (exactly 5 `201`s, `sold <= 5`, uniqueness holds), and
+crash-rollback proof (aborted claim leaves row `available`).
 
 ```sh
 npm --prefix backend run test              # unit, 7 files / 46 tests green
-npm --prefix backend run test:integration  # integration vs real PG, 6 tests green
+npm --prefix backend run test:integration  # integration vs real PG, 7 tests green
+npm --prefix frontend run test             # frontend, 1 file / 6 tests green
 ```
 
 The exact-5 probe is the small-scale twin of the stress proof: 50 parallel

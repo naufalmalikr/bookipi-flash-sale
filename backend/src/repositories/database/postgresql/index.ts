@@ -131,6 +131,29 @@ export class PostgresDatabase implements Database {
       const unitRow = claimed.rows[0];
       if (unitRow === undefined) {
         await client.query('ROLLBACK');
+        // Same-user duplicate at exact exhaustion would otherwise report
+        // sold-out: SKIP LOCKED finds nothing, so the UNIQUE path never
+        // fires. Re-check after rollback; if this buyer's row landed (now
+        // or after a short settle for the winner's commit), be truthful.
+        const hasPriorRow = async (): Promise<boolean> => {
+          try {
+            const prior = await (client as PgPoolClient).query<{ id: number }>(
+              `SELECT id FROM purchases
+                WHERE sale_id = $1 AND canonical_user_id = $2 LIMIT 1`,
+              [saleId, canonical],
+            );
+            return (prior.rowCount ?? 0) > 0;
+          } catch {
+            return false;
+          }
+        };
+        if (await hasPriorRow()) {
+          return { ok: false, error: 'already-purchased' };
+        }
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        if (await hasPriorRow()) {
+          return { ok: false, error: 'already-purchased' };
+        }
         return { ok: false, error: 'sold-out' };
       }
       const unitId: number = unitRow.id;

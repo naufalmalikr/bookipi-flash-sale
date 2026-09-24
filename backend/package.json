@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "test": "vitest run",
     "test:integration": "vitest run --config vitest.integration.config.ts",
+    "typecheck": "tsc --noEmit",
     "migrate": "node --experimental-strip-types src/interfaces/scripts/postgresql/migrate.ts",
     "seed": "node --experimental-strip-types src/interfaces/scripts/postgresql/seed.ts"
   },

@@ -15,7 +15,7 @@
 ## Layout
 
 - `backend/src/`: `index.ts` (wiring+boot), `Config.ts` (sole env reader), `Application.ts` (container), `interfaces/http/` (routes), `services/purchase|sale/` (orchestration), `repositories/database/postgresql/` (only raw SQL), `repositories/cache/` (`Cache` iface + `InMemoryCache`), `repositories/logger/`, `models/requests|responses|*/ *.contract.ts`, `entities/`, `interfaces/scripts/postgresql/` (`001_init.sql`, `migrate.ts`, `seed.ts`, `probe.ts`).
-- `frontend/src/`: `api.ts`, `App.tsx`, `main.tsx`, `App.css`.
+- `frontend/src/`: `api.ts`, `App.tsx`, `display.ts`, `main.tsx`, `App.css`.
 - `stress/`: `purchase-spike.js`, `README.md`, `results-summary.json` (proof, committed); `results.json` (~470MB, git-ignored, reproducible).
 - Root: `docker-compose.yml`, `.env.example`, `package.json` (workspaces `backend,frontend`), `PROJECT.md`, `STRATEGY.md`, `README.md`.
 - Ignore `dist/`, `node_modules/`, `.env` (not `.env.example`), `.omo/`, `.tmp/`, `stress/results.json`.
@@ -100,7 +100,8 @@
 ## Tests + stress
 
 - `npm --prefix backend run test` — unit 7 files/46 tests (canonical vectors, window bounds, error map, Zod schemas).
-- `npm --prefix backend run test:integration` — vs real PG 18.6 in Docker: lifecycle `upcoming→active→ended`, Gmail-variant `409`, sold-out, SSE delivery, 5-stock/50-parallel exact-5 probe (exactly five `201`, rest `409`, no dup users/units).
+- `npm --prefix backend run test:integration` — vs real PG 18.6 in Docker, 7 tests: lifecycle `upcoming→active→ended`, Gmail-variant `409`, sold-out, same-user concurrent duplicate at exact exhaustion (1×201 + 1×409 already-purchased), SSE delivery, 5-stock/50-parallel exact-5 probe (exactly five `201`, rest `409`, no dup users/units), crash-rollback proof.
+- `npm --prefix frontend run test` — frontend 1 file/6 tests (`toneFor`, `formatDelta` in `display.ts`).
 - `npm run migrate` / `npm run seed` — apply `001_init.sql` / upsert config + converge units.
 - Stress `stress/purchase-spike.js`: `ramping-vus` 0→200 (20s) →1000 (30s) →hold 1000 (30s) →down (10s), ~90s in 10-min ACTIVE window, `STOCK_QTY=100`, `RATE_LIMIT_BUY=0`.
 - Each iter `POST {userId: vu<VU>-it<ITER>-<ts>@load.test}` (unique by construction, so `400`/`already-purchased` impossible); gate is `checks rate>0.99`, `http_req_failed ~0.9991` is informational (k6 flags expected `409`s).

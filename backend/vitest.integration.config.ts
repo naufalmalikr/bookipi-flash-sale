@@ -3,7 +3,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
   test: {
     // Real-Postgres integration scope: the single
-    // src/interfaces/http/integration-test.ts file (6 tests, sequential,
+    // src/interfaces/http/integration-test.ts file (7 tests, sequential,
     // no cross-file DB interference). Unit scope (vitest.config.ts)
     // EXCLUDES this file so `npm run test` stays offline
     // (7 files / 46 tests).
