@@ -6,7 +6,7 @@ export default defineConfig({
     // src/flash-sale.integration.test.ts file (sequential, no cross-file DB
     // interference). Unit scope (vitest.config.ts) EXCLUDES this file so
     // `npm run test` stays offline (4 files / 38 tests).
-    include: ['src/**/*.integration.test.ts'],
+    include: ['src/**/*.integration.test.ts', 'src/**/integration-test.ts'],
     exclude: ['node_modules', 'dist'],
     testTimeout: 60000,
     hookTimeout: 60000,
