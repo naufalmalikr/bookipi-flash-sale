@@ -1,9 +1,8 @@
 /**
  * Postgres schema migration runner (thin script adapter).
  *
- * Reads migrations/001_init.sql (resolving dist + src candidates the same
- * way the legacy loader does) and applies it via database.ensureSchema().
- * Loads config ONLY via loadConfig() — the sole process.env reader.
+ * Reads migrations/001_init.sql co-located with this file and applies it via
+ * database.ensureSchema(). Loads config ONLY via loadConfig().
  *
  * Runnable standalone:
  *   node --experimental-strip-types src/interfaces/scripts/postgresql/migrate.ts
@@ -16,24 +15,16 @@ import { loadConfig } from '../../../Config.js';
 import { PostgresDatabase } from '../../../repositories/database/postgresql/index.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-// dist layout mirrors src, so a co-located dist migration wins when the
-// build copies static assets; otherwise fall back to the src tree (the
-// Dockerfile COPYs backend/ wholesale, so src always ships next to dist).
-const MIGRATION_CANDIDATES = [
-  join(here, 'migrations', '001_init.sql'),
-  join(here, '..', '..', '..', '..', 'src', 'interfaces', 'scripts', 'postgresql', 'migrations', '001_init.sql'),
-];
+const MIGRATION_PATH = join(here, 'migrations', '001_init.sql');
 
 async function loadMigrationSql(): Promise<string> {
-  let lastErr: unknown = null;
-  for (const p of MIGRATION_CANDIDATES) {
-    try {
-      return await readFile(p, 'utf8');
-    } catch (err) {
-      lastErr = err;
-    }
+  try {
+    return await readFile(MIGRATION_PATH, 'utf8');
+  } catch (err) {
+    throw err instanceof Error
+      ? err
+      : new Error(`001_init.sql not found at ${MIGRATION_PATH}`);
   }
-  throw lastErr instanceof Error ? lastErr : new Error('001_init.sql not found');
 }
 
 export async function migrate(): Promise<void> {

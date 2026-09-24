@@ -1,7 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { dirname, join } from 'node:path';
-import type { FastifyInstance } from 'fastify';
 import { loadConfig } from './Config.js';
 import type { Application } from './Application.js';
 import { PostgresDatabase } from './repositories/database/postgresql/index.js';
@@ -9,24 +8,26 @@ import { InMemoryCache } from './repositories/cache/in-memory/index.js';
 import { ConsoleLogger } from './repositories/logger/console/index.js';
 import { SaleServiceImpl } from './services/sale/index.js';
 import { PurchaseServiceImpl } from './services/purchase/index.js';
-import { buildApp as buildInjectedApp, startHttp } from './interfaces/http/index.js';
+import { startHttp } from './interfaces/http/index.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const SCHEMA_CANDIDATES = [
-  join(here, 'interfaces', 'scripts', 'postgresql', 'migrations', '001_init.sql'),
-  join(here, '..', 'src', 'interfaces', 'scripts', 'postgresql', 'migrations', '001_init.sql'),
-];
+const SCHEMA_PATH = join(
+  here,
+  'interfaces',
+  'scripts',
+  'postgresql',
+  'migrations',
+  '001_init.sql',
+);
 
 async function loadSchemaSql(): Promise<string> {
-  let lastErr: unknown = null;
-  for (const p of SCHEMA_CANDIDATES) {
-    try {
-      return await readFile(p, 'utf8');
-    } catch (err) {
-      lastErr = err;
-    }
+  try {
+    return await readFile(SCHEMA_PATH, 'utf8');
+  } catch (err) {
+    throw err instanceof Error
+      ? err
+      : new Error(`001_init.sql not found at ${SCHEMA_PATH}`);
   }
-  throw lastErr instanceof Error ? lastErr : new Error('001_init.sql not found');
 }
 
 export function buildApplication(): Application {
@@ -37,10 +38,6 @@ export function buildApplication(): Application {
   const saleService = new SaleServiceImpl(database, cache, logger);
   const purchaseService = new PurchaseServiceImpl(database, cache, logger);
   return { config, saleService, purchaseService, database, cache, logger };
-}
-
-export function buildApp(application: Application): Promise<FastifyInstance> {
-  return buildInjectedApp(application);
 }
 
 export { startHttp };
@@ -66,7 +63,7 @@ async function main(): Promise<void> {
       `[boot] sale_config stock_qty=${String(application.config.stockQty)} counts=${JSON.stringify(counts)}`,
     );
   } catch (err) {
-    console.error(`[boot] 500 database init failed: ${(err as Error).message}`);
+    application.logger.error(`[boot] 500 database init failed: ${(err as Error).message}`);
     process.exit(1);
   }
   await startHttp(application);
