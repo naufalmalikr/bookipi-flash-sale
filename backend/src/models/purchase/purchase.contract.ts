@@ -1,7 +1,3 @@
-export interface AttemptPurchaseInput {
-  rawUserId: string;
-}
-
 export type AttemptPurchaseErrorCode =
   | 'invalid-userId'
   | 'sale-not-active'
@@ -22,3 +18,5 @@ export interface PurchaseCommittedEvent {
   unitId: number;
   canonicalUserId: string;
 }
+
+export type PurchaseCommittedListener = (ev: PurchaseCommittedEvent) => void;

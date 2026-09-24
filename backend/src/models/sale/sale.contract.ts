@@ -11,8 +11,4 @@ export interface SaleStatusPayload {
   serverTime: string;
 }
 
-export interface GetStatusInput {
-  nowMs?: number;
-}
-
 export type GetStatusOutput = SaleStatusResponse;
