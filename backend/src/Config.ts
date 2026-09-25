@@ -87,8 +87,8 @@ export function loadConfig(): AppConfig {
   const portRaw: string | undefined = process.env['PORT'];
   let port = 3001;
   if (portRaw !== undefined && portRaw !== '') {
-    const parsed = parseStrictInt(portRaw);
-    if (parsed !== undefined && parsed > 0 && parsed < 65536) {
+    const parsed = parsePortValue(portRaw);
+    if (parsed !== undefined) {
       port = parsed;
     } else {
       console.warn(`[boot] invalid PORT=${JSON.stringify(portRaw)} (must be 1-65535), falling back to 3001`);
@@ -98,7 +98,7 @@ export function loadConfig(): AppConfig {
   const rlRaw: string | undefined = process.env['RATE_LIMIT_BUY'];
   let rateLimitBuy = 10;
   if (rlRaw !== undefined && rlRaw !== '') {
-    const parsed = parseStrictInt(rlRaw);
+    const parsed = parseRateLimitBuyValue(rlRaw);
     if (parsed !== undefined) {
       rateLimitBuy = parsed;
     } else {
@@ -109,8 +109,8 @@ export function loadConfig(): AppConfig {
   const stockRaw: string | undefined = process.env['STOCK_QTY'];
   let stockQty = 100;
   if (stockRaw !== undefined && stockRaw !== '') {
-    const parsed = parseStrictInt(stockRaw);
-    if (parsed !== undefined && parsed > 0) {
+    const parsed = parseStockQtyValue(stockRaw);
+    if (parsed !== undefined) {
       stockQty = parsed;
     } else {
       console.error(`[boot] 500 invalid STOCK_QTY=${JSON.stringify(stockRaw)} (must be a positive integer)`);
@@ -129,8 +129,8 @@ export function loadConfig(): AppConfig {
   const poolRaw: string | undefined = process.env['PG_POOL_MAX'];
   let poolMax = 50;
   if (poolRaw !== undefined && poolRaw !== '') {
-    const parsed = parseStrictInt(poolRaw);
-    if (parsed !== undefined && parsed > 0) {
+    const parsed = parsePoolMaxValue(poolRaw);
+    if (parsed !== undefined) {
       poolMax = parsed;
     } else {
       console.warn(`[boot] invalid PG_POOL_MAX=${JSON.stringify(poolRaw)} (must be a positive integer), falling back to 50`);

@@ -88,11 +88,11 @@ export async function buildHttpServer(application: Application): Promise<Fastify
     }
     const status = err.statusCode !== undefined && err.statusCode >= 400 ? err.statusCode : 500;
     if (status === 404) {
-      void reply.code(404).send(envelope('not-found', err.message ?? 'Route not found'));
+      void reply.code(404).send(envelope('not-found', 'Route not found'));
       return;
     }
     if (status >= 400 && status < 500) {
-      void reply.code(status).send(envelope('bad-request', err.message ?? 'Bad request'));
+      void reply.code(status).send(envelope('bad-request', 'Bad request'));
       return;
     }
     void reply.code(500).send(envelope('internal-error', 'Internal server error'));
@@ -121,6 +121,12 @@ export async function startHttp(application: Application): Promise<FastifyInstan
     if (closing) return;
     closing = true;
     application.logger.info(`[shutdown] ${signal} received, draining`);
+    try {
+      const drain = (fastify as unknown as { sseDrain?: () => void }).sseDrain;
+      drain?.();
+    } catch (err) {
+      application.logger.error('[shutdown] sse drain failed', err);
+    }
     try {
       await fastify.close();
     } catch (err) {

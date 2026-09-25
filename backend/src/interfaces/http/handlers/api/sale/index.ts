@@ -132,9 +132,19 @@ export function registerSaleRoutes(fastify: FastifyInstance, application: Applic
     maybeStopTimers(hub);
     done();
   });
+  (fastify as unknown as { sseDrain?: () => void }).sseDrain = () => {
+    for (const res of hub.clients) {
+      try {
+        res.destroy();
+      } catch {
+      }
+    }
+    hub.clients.clear();
+    maybeStopTimers(hub);
+  };
 
   fastify.get('/api/sale/status', (_req, reply) => {
-    void (async () => {
+    (async () => {
       try {
         const payload: SaleStatusResponse = await application.saleService.getStatus();
         void reply.code(200).send(payload);
@@ -149,11 +159,11 @@ export function registerSaleRoutes(fastify: FastifyInstance, application: Applic
           .code(500)
           .send(envelope('internal-error', 'Failed to load sale status'));
       }
-    })();
+    })().catch(() => {});
   });
 
   fastify.get('/api/sale/events', (req, reply) => {
-    void (async () => {
+    (async () => {
       const logInfo = (msg: string): void => {
         req.log.info(msg);
       };
@@ -195,6 +205,6 @@ export function registerSaleRoutes(fastify: FastifyInstance, application: Applic
       // A dead socket never emits 'close' on req.raw promptly; without
       // this the hub keeps writing into a broken pipe on every tick.
       raw.on('error', drop);
-    })();
+    })().catch(() => {});
   });
 }

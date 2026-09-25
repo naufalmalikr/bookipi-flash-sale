@@ -5,7 +5,7 @@ FROM node:26.10.0-alpine AS build
 WORKDIR /app
 COPY package.json package-lock.json* ./
 COPY frontend/package.json ./frontend/
-RUN npm ci --workspace=frontend --include-workspace-root=false || npm install --workspace=frontend
+RUN npm ci --workspace=frontend --include-workspace-root=false
 COPY frontend/ ./frontend/
 WORKDIR /app/frontend
 ARG VITE_API_URL=http://localhost:3001

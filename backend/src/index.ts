@@ -64,7 +64,7 @@ async function main(): Promise<void> {
       `[boot] sale_config stock_qty=${String(application.config.stockQty)} counts=${JSON.stringify(counts)}`,
     );
   } catch (err) {
-    application.logger.error(`[boot] 500 database init failed: ${(err as Error).message}`);
+    application.logger.error(`[boot] 500 database init failed: ${err instanceof Error ? err.message : String(err)}`);
     process.exit(1);
   }
   await startHttp(application);

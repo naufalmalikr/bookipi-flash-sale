@@ -85,7 +85,9 @@ purchases(id, sale_id, canonical_user_id UNIQUE, unit_id UNIQUE, raw_user_id, cr
 
 Pre-transaction gates (no transaction opened — fail fast, no rollback needed):
 
-1. **Gate on sale window** (server time, `sale_config` may come from cache):
+1. **Gate on sale window** (server time, authoritative `sale_config` read via
+    `database.getSaleConfig()` — never cache; the claim path only calls
+    `cache.invalidate()` post-commit):
     if `now < starts_at` or `now > ends_at` → `403 sale-not-active`.
 2. **Fast-path repeat-buyer check**: if a `purchases` row exists for
     `(sale_id, canonical user_id)` → `409 already-purchased`. This is an
@@ -192,15 +194,21 @@ Notes:
   second attempt → `409`), sold-out path, SSE event delivery on purchase,
   concurrent purchase attempts against a tiny stock (e.g., 5 units, 50 parallel
   callers → exactly 5 purchases).
-- **Stress (k6, `stress/`):** 1000 VUs ramp against 100 units over the active
-  window; assertions: `http_req_failed` low (only expected 4xx), exactly 100
-  `purchased`, `sold` count ≤ 100, `canonical_user_id` uniqueness holds. Results exported
-  to JSON + summarized in README with expected outcome.
+- **Stress (k6 via Docker `grafana/k6:2.3.0`, `stress/`):** 1000 VUs ramp
+  against 100 units over the active window; gates: `checks` rate > 0.99 per
+  scenario (NOT `http_req_failed` — k6 flags expected 409s, so its
+  ~0.9991 rate is informational only); proof census exactly 100 × `201`
+  + 124,884 × `409` + 0 other (124,984 total), `purchases == sold == 100`
+  (exact — `≤ 100` would accept undersell), 0 duplicate canonical users /
+  units, 100 distinct emails. Duplicate-buyer scenario rides along: 10 fixed
+  emails hammered 30s → exactly 10 × `201` + retries all `409
+  already-purchased`, 0 `sold-out`, 0 other. Results exported to JSON +
+  summarized in README with expected outcome.
 
 ## 8. Operations
 
 - `docker-compose.yml`: `postgres` + `backend` + `frontend`; one command
-  `docker compose up --build`.
+  `docker compose up --build -d`.
 - Env: `SALE_START`, `SALE_END`, `STOCK_QTY` (defaults: now+60s, +10min, 100),
   `DATABASE_URL`, `PORT`, `RATE_LIMIT_BUY` (default 10/min/IP).
 - Backend: Zod validation on all inputs, `@fastify/rate-limit` on purchase
@@ -237,12 +245,13 @@ If traffic grows 100x:
 
 - Docker-dependent tests may be slow on weak laptops → mitigate with small-stock
   integration case + PGHOST override for local Postgres.
-- k6 must be installed for stress → provide `stress/README` + `npx`-free
-  fallback script note.
+- k6 runs Docker-only (`grafana/k6:2.3.0` image, no local install) → see
+  `stress/README.md` for the exact run command.
 - Clock skew in compose → all window checks use backend `now()`; frontend only
   displays server-provided times.
 
 ## 12. Next Step
 
-Work plan (backend → frontend → tests → stress → README/diagram) to be proposed
-for approval after this strategy is accepted.
+Implemented per this strategy (backend → frontend → tests → stress →
+README/diagram). Decision record is frozen; behavior changes update this
+file in the same PR.

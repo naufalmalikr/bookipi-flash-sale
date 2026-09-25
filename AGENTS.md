@@ -9,13 +9,13 @@
 - Node `26.10.0` (`.nvmrc`, `engines`, `node:26.10.0-alpine`) / TS `7.0.2` / Postgres `18.6-alpine`.
 - Backend: Fastify `5.12.5`, `@fastify/rate-limit` `11.2.0`, `@fastify/cors` `11.3.0`, Zod `4.6.5`, `pg` `8.23.0`, Vitest `5.0.1`.
 - Frontend: Vite `8.3.0`, React/ReactDOM `19.3.0`, `@vitejs/plugin-react` `6.1.1`.
-- Stress: k6 `v2.3.0` via Docker `grafana/k6` only, no local install.
+- Stress: k6 `v2.3.0` via Docker `grafana/k6:2.3.0` only, no local install.
 - Lockfile pins resolved tree; if doc numbers drift, doc is stale not build.
 
 ## Layout
 
 - `backend/src/`: `index.ts` (wiring+boot), `Config.ts` (sole env reader), `Application.ts` (container), `interfaces/http/` (routes), `services/purchase|sale/` (orchestration), `utilities/` (`computeGate` — single copy of the window rule), `repositories/database/postgresql/` (only raw SQL), `repositories/cache/` (`Cache` iface + `InMemoryCache`), `repositories/logger/`, `models/requests|responses|*/ *.contract.ts`, `entities/`, `interfaces/scripts/postgresql/` (`001_init.sql`, `migrate.ts`, `seed.ts`, `probe.ts`).
-- `frontend/src/`: `api.ts`, `App.tsx`, `display.ts`, `main.tsx`, `App.css`.
+- `frontend/src/`: `api.ts`, `App.tsx`, `feed.ts`, `display.ts`, `main.tsx`, `App.css`.
 - `stress/`: `purchase-spike.js`, `README.md`, `results-summary.json` (proof + latency profile, committed), `summarize.mjs`; `results.json` (~470MB, git-ignored, reproducible).
 - Root: `docker-compose.yml`, `.env.example`, `package.json` (workspaces `backend,frontend`), `PROJECT.md`, `STRATEGY.md`, `README.md`.
 - Ignore `dist/`, `node_modules/`, `.env` (not `.env.example`), `.omo/`, `.tmp/`, `stress/results.json`.
@@ -74,6 +74,7 @@
 
 - `SaleService.getStatus()`: authoritative `getSaleConfig()` + `Date.now()` window math (`upcoming/active/ended`, inclusive), cache `getStatus()` if `totalStock` matches else `countAvailable(1)` + `setStatus()`; TTL 5s + invalidate on commit.
 - `buildStatusPayload()` (SSE): always fresh `COUNT`, bypasses cache by design.
+- SSE payloads are aggregate-only (counts + window, no buyer emails); `GET /api/purchase/:userId` silences access logs (`logLevel: silent`), POST bodies are never access-logged.
 - Claim path never reads cache.
 - SSE: hijacked `text/event-stream`, initial frame + fan-out on commit + ~2s tick + `:heartbeat`; timers start first client, stop last disconnect; one `COUNT` per tick serves all clients.
 - Window transitions log once.
@@ -102,10 +103,10 @@
 - `npm --prefix backend run test` — unit 9 files/67 tests (canonical vectors, `computeGate` window bounds + call-site agreement, error map, Zod schemas, strict int parsing).
 - `npm --prefix backend run test:integration` — vs real PG 18.6 in Docker, 4 files/10 tests: lifecycle `upcoming→active→ended`, Gmail-variant `409`, sold-out, same-user concurrent duplicate at exact exhaustion (1×201; duplicate reads `already-purchased` or, accepted exhaustion edge, `sold-out`; post-commit repeat always `already-purchased`), same-user race with stock remaining (23505→`already-purchased`), SSE delivery, 5-stock/50-parallel exact-5 probe (exactly five `201`, rest `409`, no dup users/units), crash-rollback proof.
 - `npm --prefix frontend run test` — frontend 2 files/17 tests (`toneFor`, `formatDelta` in `display.ts`; `FeedController` backoff/fallback/teardown + wrong-shape ignore in `feed.ts`).
-- `npm run migrate` / `npm run seed` — apply `001_init.sql` / upsert config + converge units.
+- `npm --prefix backend run migrate` / `npm --prefix backend run seed` — apply `001_init.sql` / upsert config + converge units.
 - Stress `stress/purchase-spike.js`: `spike` scenario `ramping-vus` 0→200 (20s) →1000 (30s) →hold 1000 (30s) →down (10s), ~90s in 10-min ACTIVE window, `STOCK_QTY=100`, `RATE_LIMIT_BUY=0`; plus `duplicate` scenario (10 VUs, one fixed email each, 30s from t=0: expect exactly 10×`201`, all retries `409 already-purchased`, 0 `sold-out`; `K6_DUP_ONLY=true` for standalone). `node stress/summarize.mjs` regenerates `results-summary.json` (census + per-status latency percentiles) from raw results.json.
 - Each iter `POST {userId: vu<VU>-it<ITER>-<ts>@load.test}` (unique by construction, so `400`/`already-purchased` impossible); gate is `checks rate>0.99`, `http_req_failed ~0.9991` is informational (k6 flags expected `409`s).
-- Run: boot backend with `SALE_START=$(date -u -d '-1 min' ...)` `SALE_END=$(date -u -d '+10 min' ...)` `STOCK_QTY=100 RATE_LIMIT_BUY=0 docker compose up --build -d backend`, then `docker run --rm --network host --user "$(id -u):$(id -g)" -v "$PWD/stress:/scripts" -e K6_TS="$(date +%s%N)" grafana/k6 run --out json=/scripts/results.json /scripts/purchase-spike.js`.
+- Run: boot backend with `SALE_START=$(date -u -d '-1 min' ...)` `SALE_END=$(date -u -d '+10 min' ...)` `STOCK_QTY=100 RATE_LIMIT_BUY=0 docker compose up --build -d backend`, then `docker run --rm --network host --user "$(id -u):$(id -g)" -v "$PWD/stress:/scripts" -e K6_TS="$(date +%s%N)" grafana/k6:2.3.0 run --out json=/scripts/results.json /scripts/purchase-spike.js`.
 - Proof (`stress/results-summary.json` + `stress/evidence/k6-proof-excerpt.md`): 124984 reqs = `100×201` + `124884×409` + 0 other; DB `purchases==100`, `sold==100`; 0 dup canonical/users, 0 dup units, 100 distinct emails; `checks` 249968/249968, exit 0. Latency (same run): `201` p95≈11ms; `409` p95≈792ms (includes since-removed 100ms settle sleep). Duplicate-scenario validation (fresh 100-unit seed): 10×201 + 65832×409 already-purchased + 0 other, `purchases==10`, 0 dups.
 - Verify: `SELECT count(*) FROM purchases` (=100); `SELECT count(*) FROM stock_units WHERE status='sold'` (=100); `GROUP BY canonical_user_id/unit_id HAVING count(*)>1` (=0 rows).
 - Do NOT reseed after proof; live volume is ephemeral, summary JSON + log are durable record.

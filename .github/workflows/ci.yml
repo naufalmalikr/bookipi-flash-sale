@@ -27,6 +27,7 @@ jobs:
           cache: npm
       - run: npm ci --workspace=frontend --include-workspace-root=false
       - run: npm --prefix frontend run test
+      - run: npm --prefix frontend run typecheck
       - run: npm --prefix frontend run build
 
   backend-integration:

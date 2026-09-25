@@ -6,7 +6,7 @@ this file is the committed record alongside `stress/results-summary.json`.
 
 ## Toolchain
 
-- k6: `k6 v2.3.0 (commit/e088784614, go1.27.1, linux/amd64)` via `grafana/k6` Docker image
+- k6: `k6 v2.3.0 (commit/e088784614, go1.27.1, linux/amd64)` via `grafana/k6:2.3.0` Docker image
 - Script: `stress/purchase-spike.js` (ramping-vus 0→200→1000 hold 30s→0, unique vu-it-ts@load.test per iteration)
 
 ## Boot env

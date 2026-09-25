@@ -8,7 +8,7 @@ TL;DR: 1,000 buyers fight for 100 units, every claim runs through Postgres, and 
 
 - Docker + `docker compose` (engine running, ports 3001, 5173, 5432 free).
 - Node `26.10.0` (see `.nvmrc`; `node --version` should print `v26.10.0`).
-- k6 via Docker only, no local install needed (`grafana/k6` image, see Stress).
+- k6 via Docker only, no local install needed (`grafana/k6:2.3.0` image, see Stress).
 - A POSIX shell with `curl` for the checks below.
 
 ## Quickstart (reviewer path)
@@ -181,7 +181,7 @@ so any drift means the doc is stale, not the build.
 | React / React DOM | `19.3.0` |
 | TypeScript | `7.0.2` |
 | Vitest | `5.0.1` |
-| k6 (proof run) | `k6 v2.3.0` (Docker `grafana/k6`) |
+| k6 (proof run) | `k6 v2.3.0` (Docker `grafana/k6:2.3.0`) |
 
 ## Tests
 
@@ -232,7 +232,7 @@ docker compose up --build -d backend
 docker run --rm --network host --user "$(id -u):$(id -g)" \
   -v "$PWD/stress:/scripts" \
   -e K6_TS="$(date +%s%N)" \
-  grafana/k6 run --out json=/scripts/results.json /scripts/purchase-spike.js
+  grafana/k6:2.3.0 run --out json=/scripts/results.json /scripts/purchase-spike.js
 ```
 
 Expected outcome (copied from `stress/results-summary.json`, the committed

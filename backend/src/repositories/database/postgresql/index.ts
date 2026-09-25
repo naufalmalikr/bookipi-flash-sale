@@ -172,7 +172,6 @@ export class PostgresDatabase implements Database {
         throw new Error('unit-double-claim');
       }
       if (isCanonicalUserUniqueViolation(err)) return { ok: false, error: 'already-purchased' };
-      if (isUniqueViolation(err)) return { ok: false, error: 'already-purchased' };
       throw err;
     } finally {
       client?.release();

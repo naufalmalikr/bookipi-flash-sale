@@ -89,7 +89,7 @@ k6 runs from Docker (host networking reaches `localhost:3001`):
 docker run --rm --network host --user "$(id -u):$(id -g)" \
   -v "$PWD/stress:/scripts" \
   -e K6_TS="$(date +%s%N)" \
-  grafana/k6 run --out json=/scripts/results.json /scripts/purchase-spike.js
+  grafana/k6:2.3.0 run --out json=/scripts/results.json /scripts/purchase-spike.js
 ```
 
 (`--user` matches host UID so the container can write `results.json` into

@@ -13,7 +13,7 @@ export function registerPurchaseRoutes(fastify: FastifyInstance, application: Ap
   // in plain log lines. Silence request logs for this route only; error
   // envelopes still return normally, they just aren't access-logged.
   fastify.get('/api/purchase/:userId', { logLevel: 'silent' }, (req, reply) => {
-    void (async () => {
+    (async () => {
       const rawUserId = (req.params as { userId: string }).userId;
       let result: GetPurchaseOutput;
       try {
@@ -37,7 +37,7 @@ export function registerPurchaseRoutes(fastify: FastifyInstance, application: Ap
       void reply
         .code(404)
         .send(envelope('not-purchased', 'This user has not purchased'));
-    })();
+    })().catch(() => {});
   });
 
   const rateLimitBuy: number = application.config.rateLimitBuy;
@@ -50,7 +50,7 @@ export function registerPurchaseRoutes(fastify: FastifyInstance, application: Ap
       : { schema: { body: purchaseBodySchema } };
 
   fastify.post('/api/purchase', buyRouteOptions, (req, reply) => {
-    void (async () => {
+    (async () => {
       const rawUserId = (req.body as { userId: string }).userId;
       let outcome: AttemptPurchaseOutput;
       try {
@@ -92,6 +92,6 @@ export function registerPurchaseRoutes(fastify: FastifyInstance, application: Ap
             .send(envelope('internal-error', 'Purchase failed'));
           return;
       }
-    })();
+    })().catch(() => {});
   });
 }
