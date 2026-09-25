@@ -1,20 +1,49 @@
-# Stress: 1000 VUs vs 100 units (Todo 14)
+# Stress: 1000 VUs vs 100 units (+ duplicate-buyer scenario)
 
 ## What this proves
 
-`purchase-spike.js` ramps to **1000 virtual users** against **100 stock units**.
-VUs loop for the run duration, each iteration making one `POST /api/purchase`
-with a globally unique email
-(`vu<VU>-it<ITER>-<ts>@load.test`, unique per VU *and* per iteration, so
-`400 invalid-userId` and `409 already-purchased` are impossible by
-construction). Expected outcome:
+`purchase-spike.js` runs two k6 scenarios against one backend, split by the
+automatic `scenario` tag so the censuses never mix:
 
-- exactly **100 × `201 purchased`** (one per unit),
-- the rest × `409 sold-out` (post-exhaustion, the only other possible status),
-- `SELECT count(*) FROM purchases` == 100,
-  `SELECT count(*) FROM stock_units WHERE status='sold'` == 100,
-- `SELECT canonical_user_id, count(*) ... HAVING count(*)>1` → 0 rows,
-  `SELECT unit_id, count(*) ... HAVING count(*)>1` → 0 rows.
+1. **`spike`** — ramps to **1000 virtual users** against **100 stock units**.
+   VUs loop for the run duration, each iteration making one `POST /api/purchase`
+   with a globally unique email
+   (`vu<VU>-it<ITER>-<ts>@load.test`, unique per VU *and* per iteration, so
+   `400 invalid-userId` and `409 already-purchased` are impossible by
+   construction). Expected outcome:
+
+   - exactly **100 × `201 purchased`** (one per unit),
+   - the rest × `409 sold-out` (post-exhaustion, the only other possible status),
+   - `SELECT count(*) FROM purchases` == 100,
+     `SELECT count(*) FROM stock_units WHERE status='sold'` == 100,
+   - `SELECT canonical_user_id, count(*) ... HAVING count(*)>1` → 0 rows,
+     `SELECT unit_id, count(*) ... HAVING count(*)>1` → 0 rows.
+
+2. **`duplicate`** — 10 VUs from t=0 (while the spike ramp is still near zero,
+   so stock is plentiful) hammer one fixed email each
+   (`dup<VU>-<ts>@load.test`) for 30s. The first attempt wins a unit; every
+   later attempt must be rejected via the repeat-buyer fast path or the
+   `UNIQUE(sale_id, canonical_user_id)` → `23505` mapping. Thresholds:
+   exactly one `201` per email (`dup_201 == 10`), all retries
+   `already-purchased`, `dup_soldout == 0`, `dup_other == 0`. This loads the
+   one-item-per-user rule at request rates the 2-way integration race cannot
+   reach — at ~2,200 rps it answered **10 × `201` + 65,832 × `409
+   already-purchased` + 0 other** in 30s with `purchases == 10`, 0 duplicate
+   canonical users or units (validated 2026-09-25 on a fresh 100-unit seed;
+   raw output git-ignored, rerun with `K6_DUP_ONLY=true`).
+
+## Thresholds
+
+- `checks{scenario:spike}` and `checks{scenario:duplicate}`: `rate>0.99`
+  (every response must parse to a result code or an error envelope).
+- Duplicate counters: `dup_201 == 10` (one win per email), `dup_already >= 10`,
+  `dup_soldout == 0`, `dup_other == 0`.
+- k6's `http_req_failed` counts **any** status ≥ 400 as failed, including the
+  *expected* `409` responses (the bulk of iterations) — so its rate (~0.999 in
+  the recorded run) is informational only, NOT gated. Gating on it would
+  invert the proof. The real assertions are `checks`, the duplicate counters,
+  and the post-run SQL counts.
+- `k6 run` exits 0 only when the thresholds above pass.
 
 ## Rate-limit bypass (why `RATE_LIMIT_BUY=0` exists)
 
@@ -67,18 +96,22 @@ docker run --rm --network host --user "$(id -u):$(id -g)" \
 the bind-mounted `stress/` dir.)
 
 Stages: 0→200 VUs in 20s, →1000 in 30s, hold 1000 for 30s, ramp down 10s.
-Runtime ≈ 90s; fits inside the 10-minute window with margin.
+Runtime ≈ 90s; fits inside the 10-minute window with margin. The duplicate
+scenario rides along automatically; set `-e K6_DUP_ONLY=true` to run it
+standalone against a scratch backend.
 
-## Thresholds — honest note
+## Post-run summary
 
-- `checks: ['rate>0.99']` is the gating threshold (every response must be
-  201-with-result or 409-with-error-code).
-- k6's `http_req_failed` counts **any** status ≥ 400 as failed, including the
-  *expected* `409 sold-out` responses (the bulk of iterations) — so its rate
-  (~0.999) is recorded as informational only, NOT gated. Gating on it would
-  invert the proof (a perfect exact-100 run fails it). The real assertions
-  are `checks` + the post-run SQL counts above.
-- `k6 run` exits 0 when `checks` passes.
+`stress/summarize.mjs` turns the raw k6 dump into the committed census:
+
+```sh
+node stress/summarize.mjs   # reads stress/results.json (git-ignored), rewrites results-summary.json
+```
+
+It recomputes the HTTP status census, the `http_req_duration` percentiles per
+status (the latency profile), peak VUs, iterations, and checks totals; SQL
+facts are carried over from the previous census (never derivable from the k6
+dump).
 
 ## Failure demo (why the bypass exists)
 
@@ -101,7 +134,8 @@ SELECT unit_id, count(*) FROM purchases
 ## Provenance
 
 Proof run: `stress/results-summary.json` (committed census: 100x201 /
-124,884x409 / 0 other + SQL counts) + log
+124,884x409 / 0 other + SQL counts + per-status latency percentiles, all
+recomputed from the raw dump by `stress/summarize.mjs`) + log
 `stress/evidence/k6-proof-excerpt.md` (k6 version, boot env, run
 output, SQL counts). Raw `stress/results.json` (~470MB) is git-ignored and
 reproducible via the Run section above. Final DB state is the consumed proof itself
