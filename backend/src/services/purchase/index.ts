@@ -4,10 +4,14 @@
  * Claim order (STRICT, STRATEGY.md §4.2):
  *   1. canonicalize (throw -> invalid-userId)
  *   2. database.getSaleConfig window gate (non-active -> sale-not-active BEFORE txn)
- *   3. database.hasPriorPurchase fast-path (-> already-purchased)
+ *   3. database.findPurchaseByCanonical fast-path (-> already-purchased)
  *   4. database.claimPurchase (-> sold-out / already-purchased / ok)
  *   5. on success: cache.invalidate() + broadcast to listeners
  *   6. catch-all -> internal-error
+ *
+ * The window boundary rule lives in utilities/computeGate so it cannot
+ * drift from SaleServiceImpl.computeSaleState or the in-transaction
+ * re-gate in PostgresDatabase.claimPurchase.
  *
  * Canonicalization is backend-authoritative and lives in this file
  * (canonicalizeUserId below): trim + lowercase always; Gmail-only
@@ -20,6 +24,7 @@ import type { Database } from '../../repositories/database/index.ts';
 import type { Cache } from '../../repositories/cache/index.ts';
 import type { Logger } from '../../repositories/logger/index.ts';
 import type { PurchaseService } from '../index.ts';
+import { computeGate } from '../../utilities/index.ts';
 import type {
   AttemptPurchaseOutput,
   GetPurchaseOutput,
@@ -89,12 +94,6 @@ export class PurchaseServiceImpl implements PurchaseService {
     this.logger = logger;
   }
 
-  computeGate(startsAtMs: number, endsAtMs: number, nowMs: number): boolean {
-    if (nowMs < startsAtMs) return false;
-    if (nowMs > endsAtMs) return false;
-    return true;
-  }
-
   onCommitted(cb: PurchaseCommittedListener): () => void {
     this.listeners.add(cb);
     return () => {
@@ -129,15 +128,14 @@ export class PurchaseServiceImpl implements PurchaseService {
         return { ok: false, error: 'internal-error' };
       }
       const nowMs = Date.now();
-      if (
-        !this.computeGate(cfg.startsAt.getTime(), cfg.endsAt.getTime(), nowMs)
-      ) {
+      if (!computeGate(cfg.startsAt.getTime(), cfg.endsAt.getTime(), nowMs)) {
         return { ok: false, error: 'sale-not-active' };
       }
 
       // Fast-path repeat-buyer check (no txn, no locks).
-      const prior: boolean = await this.database.hasPriorPurchase(1, canonical);
-      if (prior) {
+      const prior: { unitId: number } | undefined =
+        await this.database.findPurchaseByCanonical(1, canonical);
+      if (prior !== undefined) {
         return { ok: false, error: 'already-purchased' };
       }
 
