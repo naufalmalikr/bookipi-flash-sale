@@ -9,7 +9,7 @@ import type { Database } from '../index.ts';
 import { isUniqueViolation } from '../index.ts';
 // computeGate is a pure function (no SQL, no I/O). Importing it here keeps
 // the in-transaction window re-gate byte-identical to the pre-transaction
-// gate and the status endpoint — the rule lives in one place (M2).
+// gate and the status endpoint — the rule lives in one place.
 import { computeGate } from '../../../utilities/index.ts';
 
 // ../../Config.js does not exist yet — local shape mirrors
@@ -138,12 +138,7 @@ export class PostgresDatabase implements Database {
         // `sold-out` instead of the more precise `already-purchased`. That
         // is a mislabel, not a lost guarantee — the UNIQUE constraint plus
         // the all-or-nothing claim transaction still make one-purchase-per-
-        // user and zero-oversell structurally impossible. A previous
-        // version slept 100ms and re-queried to guess the right label; the
-        // guess was probabilistic (winner commit later than the sleep
-        // still mislabeled) and taxed every genuine sold-out response on
-        // the hottest failure path, so the heuristic was removed in favor
-        // of deterministic latency (review finding M1).
+        // user and zero-oversell structurally impossible.
         return { ok: false, error: 'sold-out' };
       }
       const unitId: number = unitRow.id;

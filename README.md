@@ -238,7 +238,7 @@ the commands above):
 - One-item-per-user under load: the `duplicate` scenario (10 fixed emails
   hammered for 30s) answered **10 × `201` + 65,832 × `409 already-purchased`
   + 0 other**, `dup_soldout == 0`, `purchases == 10`, 0 duplicate canonical
-  users or units (validated 2026-09-25, fresh seed).
+  users or units (fresh seed).
 
 Current repo state: the durable k6 proof is `stress/results-summary.json`
 (census: HTTP 100 x `201` + 124,884 x `409` + 0 other; DB `purchases == 100`,

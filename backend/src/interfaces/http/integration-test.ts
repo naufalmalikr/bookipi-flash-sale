@@ -233,7 +233,7 @@ describe('sold-out path', () => {
 });
 
 describe('same-user concurrent duplicate at exact exhaustion', () => {
-  it('one 201 + one 409; at exhaustion the duplicate may read sold-out (accepted M1 trade-off)', async () => {
+  it('one 201 + one 409; at exhaustion the duplicate may read sold-out (accepted trade-off)', async () => {
     await resetDb(client, application.cache, 1, isoAt(-60_000), isoAt(600_000));
     const attempts = await Promise.all([
       app.inject({

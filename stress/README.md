@@ -29,7 +29,7 @@ automatic `scenario` tag so the censuses never mix:
    one-item-per-user rule at request rates the 2-way integration race cannot
    reach — at ~2,200 rps it answered **10 × `201` + 65,832 × `409
    already-purchased` + 0 other** in 30s with `purchases == 10`, 0 duplicate
-   canonical users or units (validated 2026-09-25 on a fresh 100-unit seed;
+   canonical users or units (validated on a fresh 100-unit seed;
    raw output git-ignored, rerun with `K6_DUP_ONLY=true`).
 
 ## Thresholds

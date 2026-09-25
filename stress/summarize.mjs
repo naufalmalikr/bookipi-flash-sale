@@ -6,7 +6,7 @@
  * duration samples (one float array per HTTP status).
  *
  * Census recomputed from raw: HTTP status counts, per-status
- * http_req_duration percentiles (the M6 latency profile), peak VUs, total
+ * http_req_duration percentiles, peak VUs, total
  * iterations, checks totals. SQL-level facts cannot be derived from the k6
  * dump — those are carried over verbatim from the existing summary (or the
  * previous one) so a regenerated file never invents DB counts.
@@ -151,7 +151,7 @@ const sqlBlock = merged.sql ?? null;
 const summary = {
   assertions: merged.assertions ?? null,
   derived_by:
-    'stress/summarize.mjs census of raw results.json (streaming NDJSON parse, 2026-09-25): ' +
+    'stress/summarize.mjs census of raw results.json (streaming NDJSON parse): ' +
     'HTTP status counts, per-status http_req_duration percentiles, peak VUs, iterations, checks; ' +
     'sql block carried over from the original recorded census (SQL is not derivable from the k6 dump); ' +
     'raw file git-ignored, reproducible via stress/README.md',
@@ -169,10 +169,7 @@ const summary = {
     version: k6Version ?? merged.k6?.version ?? null,
     vus_max: vusMax,
   },
-  notes: [
-    'Recorded run (2026-09-23) is spike-only: the duplicate-buyer scenario was added to purchase-spike.js on 2026-09-25 and is validated separately (see stress/README.md).',
-    'Latency profile reflects pre-M1 code, which slept 100ms on every sold-out response before re-checking the duplicate buyer; current code removes that sleep.',
-  ],
+  notes: [],
   proof: merged.proof ?? null,
   run: merged.run ?? null,
   sql: sqlBlock,

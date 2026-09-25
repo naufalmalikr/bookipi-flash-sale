@@ -1,4 +1,4 @@
-# k6 proof excerpt — 1000 VUs vs 100 stock (2026-09-23)
+# k6 proof excerpt — 1000 VUs vs 100 stock
 
 Trimmed durable excerpt. Full raw `results.json` (~470MB) is git-ignored and
 reproducible via `stress/README.md`. Source log was ephemeral build output;
