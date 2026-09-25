@@ -12,6 +12,7 @@
 
 import { pathToFileURL } from 'node:url';
 import { loadConfig } from '../../../Config.ts';
+import { SALE_ID } from '../../../entities/index.ts';
 import { PostgresDatabase } from '../../../repositories/database/postgresql/index.ts';
 
 export async function seed(): Promise<void> {
@@ -24,8 +25,8 @@ export async function seed(): Promise<void> {
       config.saleStart,
       config.saleEnd,
     );
-    const converged = await database.convergeUnits(1, config.stockQty);
-    const counts = await database.getCounts(1);
+    const converged = await database.convergeUnits(SALE_ID, config.stockQty);
+    const counts = await database.getCounts(SALE_ID);
     if (counts.total !== config.stockQty) {
       console.warn(
         `[seed] stock diverge: sale_config stock_qty=${String(config.stockQty)} but stock_units rows=${String(counts.total)} (sold=${String(counts.sold)}); status totalStock will disagree with reality`,

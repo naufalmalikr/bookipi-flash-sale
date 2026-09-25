@@ -18,7 +18,6 @@ function stubDb(): Database {
     getCounts: noDb,
     findPurchaseByCanonical: noDb,
     claimPurchase: noDb,
-    getSaleWindow: noDb,
     ensureSchema: noDb,
     upsertSaleConfig: noDb,
     convergeUnits: noDb,

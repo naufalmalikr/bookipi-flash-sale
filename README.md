@@ -19,6 +19,16 @@ From a cold clone, one command brings up Postgres + backend + frontend:
 cp .env.example .env && docker compose up --build -d
 ```
 
+No `npm ci` needed for this path — the images install dependencies at build
+time. (Host-side commands below — `run dev`, `run test`, `run build` — do
+need `npm ci` once from a clean clone; see Tests.)
+
+> Window timing: with empty `SALE_START`/`SALE_END` the backend defaults to
+> now+60s → now+10min, so the sale opens **60 seconds after boot**. If the
+> smoke purchase below returns `403 sale-not-active`, the window just hasn't
+> opened yet — wait a minute and retry, or boot with an already-ACTIVE
+> window using the stress snippet (starts now-1min).
+
 Time rule: `SALE_START` / `SALE_END` must be UTC ISO-8601 with a trailing `Z`
 (e.g. `2026-09-23T07:40:00Z`). Offsets like `+02:00` or naive datetimes are
 rejected at backend boot. You'll find a generator snippet in `.env.example`.
@@ -31,7 +41,9 @@ curl -s localhost:3001/api/sale/status   # expect status + stockRemaining shape
 curl -s -o /dev/null -w "%{http_code}\n" localhost:5173/   # expect 200
 ```
 
-Smoke purchase (fresh seed: 201; on a consumed DB expect `409 sold-out`):
+Smoke purchase (fresh seed: 201; on a consumed DB expect `409 sold-out`;
+`403 sale-not-active` means the default 60s-delayed window hasn't opened yet —
+wait and retry, or boot ACTIVE via the stress snippet):
 
 ```sh
 curl -s -X POST localhost:3001/api/purchase \
@@ -111,18 +123,18 @@ serializes claims. That single idea drives the rest.
 |---|---|---|
 | Row-per-unit claim vs single counter | Each unit is its own row in `stock_units`; a buy claims one row with `SELECT ... FOR UPDATE SKIP LOCKED LIMIT 1`, then `UPDATE sold` + `INSERT purchase` in one transaction | Spreads contention across 100 rows instead of hammering one hot `qty` row. A counter (`UPDATE stock SET qty = qty - 1 WHERE qty > 0`) would be simpler and still correct, but it serializes on one row and shows less under load. Oversell is structurally impossible here: sold rows can never exceed seeded rows. |
 | `SKIP LOCKED` vs plain `FOR UPDATE` | Claim skips rows locked by concurrent transactions and takes an unlocked twin; `sold-out` only when zero rows come back | Under 1,000-way contention requests fail fast to `409` instead of piling up behind locks. Plain `FOR UPDATE` would be correct yet slow, with latency pile-up and timeouts at high VU counts. |
-| `StockCache` (TTL 5s + invalidate) | `GET /api/sale/status` serves `stockRemaining` through an in-memory cache behind a `getStatus/setStatus/invalidate` interface; every purchase commit invalidates it | Status reads cost one `COUNT` per 5s window instead of one per poll. The claim path never touches the cache, it always hits Postgres authoritatively, so stale reads can't oversell. Swapping to Redis later means reimplementing the same interface. |
+| `Cache`/`InMemoryCache` (TTL 5s + invalidate) | `GET /api/sale/status` serves `stockRemaining` through an in-memory cache behind a `getStatus/setStatus/invalidate` interface; every purchase commit invalidates it | Status reads cost one `COUNT` per 5s window instead of one per poll. The claim path never touches the cache, it always hits Postgres authoritatively, so stale reads can't oversell. Swapping to Redis later means reimplementing the same interface. |
 | SSE vs WebSocket vs polling | `GET /api/sale/events` pushes `event: status` on each purchase commit, window transition, and ~2s tick; `EventSource` in the SPA with status-poll fallback | Sale updates flow server to client only, so bidirectional sockets add nothing. Plain 3s polling at 1,000 users would burn ~333 rps just for status; one `COUNT` per tick now serves every connected client. |
 | Gmail canonical, backend-authoritative | `canonicalizeUserId()` trims and lowercases; Gmail only (`gmail.com`/`googlemail.com`): strip dots, strip `+tag`, fold `googlemail.com` to `gmail.com`. Raw email is kept for audit; the UNIQUE constraint sits on the canonical form | `foobar@gmail.com`, `foo.bar@gmail.com`, `foobar+baz@gmail.com` count as one buyer (second try gets `409 already-purchased`), while `u.s.e.r@outlook.com` stays distinct from `user@outlook.com`. The frontend must not strip dots or tags itself; curl and k6 callers get identical enforcement because the backend owns the rule. |
 | Rate limit, buy route only | `@fastify/rate-limit` on `POST /api/purchase`: 10 req/min/IP by default (`RATE_LIMIT_BUY`), `429 { error: "rate-limited" }`; status/SSE routes unlimited; `X-Forwarded-For` is trusted only with `TRUST_PROXY=1` (default off, so clients cannot rotate the header to evade the per-IP key) | The hot path gets abuse protection without throttling status reads. For k6 the limit is disabled at boot (`RATE_LIMIT_BUY=0`, see Stress) because all VUs share one source IP; production compose omits the override so the default applies. |
-| No Redis, no queue, no WS server | Postgres-only compose: `postgres` + `backend` + `frontend`. In-memory `StockCache` and `EventEmitter` inside the single backend process | One-command review with no extra setup, and the row-lock model already serializes claims, so Redis would add cost without adding safety. Timeout/reclaim logic isn't needed either: a crashed claim rolls back and its row stays `available`. Redis, pub/sub, and queues stay as a documented future lane (see diagram + Scaling). |
+| No Redis, no queue, no WS server | Postgres-only compose: `postgres` + `backend` + `frontend`. In-memory `Cache`/`InMemoryCache` and `EventEmitter` inside the single backend process | One-command review with no extra setup, and the row-lock model already serializes claims, so Redis would add cost without adding safety. Timeout/reclaim logic isn't needed either: a crashed claim rolls back and its row stays `available`. Redis, pub/sub, and queues stay as a documented future lane (see diagram + Scaling). |
 
 ## System diagram
 
 ```mermaid
 flowchart LR
     FE["React Vite SPA + TS<br/>SSE primary, status fallback<br/>buy form, result alerts"]
-    BE["Fastify Node + TS<br/>Zod validation, buy rate limit<br/>server-time gate, SSE fan-out<br/>in-memory StockCache"]
+    BE["Fastify Node + TS<br/>Zod validation, buy rate limit<br/>server-time gate, SSE fan-out<br/>in-memory Cache (InMemoryCache)"]
     DB[("Postgres 18.6<br/>sale_config<br/>stock_units, 100 twin rows<br/>purchases, unique canonical user")]
     TEST["k6 1000 VUs + Vitest<br/>unit, integration, stress"]
 
@@ -133,7 +145,7 @@ flowchart LR
 
     subgraph FUTURE["Future lane, not built"]
         direction LR
-        RC["Redis StockCache<br/>same interface"]
+        RC["Redis Cache<br/>same interface"]
         PS["Redis pub-sub<br/>SSE across replicas"]
         Q["Queue workers<br/>BullMQ or SQS"]
     end
@@ -188,9 +200,10 @@ exact-5 probe (exactly 5 `201`s, `sold == 5`, uniqueness holds), and
 crash-rollback proof (aborted claim leaves row `available`).
 
 ```sh
-npm --prefix backend run test              # unit, 8 files / 53 tests green
-npm --prefix backend run test:integration  # integration vs real PG, 9 tests green
-npm --prefix frontend run test             # frontend, 2 files / 16 tests green
+npm ci                               # once from a clean clone (host-side commands need node_modules)
+npm --prefix backend run test              # unit, 9 files / 67 tests green
+npm --prefix backend run test:integration  # integration vs real PG, 4 files / 10 tests green
+npm --prefix frontend run test             # frontend, 2 files / 17 tests green
 ```
 
 The exact-5 probe is the small-scale twin of the stress proof: 50 parallel
@@ -208,6 +221,9 @@ booted with `RATE_LIMIT_BUY=0` (single-NAT VUs share one IP, so the default
 10/min limit would measure the limiter, not the claim path).
 
 ```sh
+# GNU date (-d). macOS/BSD + portable (python3, works everywhere):
+#   SALE_START=$(python3 -c "import datetime;print((datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(minutes=1)).strftime('%Y-%m-%dT%H:%M:%SZ'))") \
+#   SALE_END=$(python3 -c "import datetime;print((datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(minutes=10)).strftime('%Y-%m-%dT%H:%M:%SZ'))") \
 SALE_START=$(date -u -d '-1 min' +%Y-%m-%dT%H:%M:%SZ) \
 SALE_END=$(date -u -d '+10 min' +%Y-%m-%dT%H:%M:%SZ) \
 STOCK_QTY=100 RATE_LIMIT_BUY=0 \
@@ -255,7 +271,7 @@ Single backend instance is plenty for this take-home. When traffic grows
 toward 100x, the plan stays docs-only and keeps Postgres as the source of
 truth for claims:
 
-- Implement `StockCache` on Redis behind the same interface.
+- Implement `Cache` (`InMemoryCache` today) on Redis behind the same interface.
 - Replace the in-memory SSE `EventEmitter` with Redis pub/sub so events fan
   out across Fastify replicas.
 - Optionally add a queue (BullMQ/SQS) to smooth bursts, with the row-claim

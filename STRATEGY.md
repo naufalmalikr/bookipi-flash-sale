@@ -28,7 +28,7 @@ reproducibility.
 | 3 | Store | **Postgres via Docker** | Closer to real-world conditions; transactions are visible and honest (not hidden in-memory) |
 | 4 | Repo layout | **Simple monorepo** | `backend/` + `frontend/` + diagram + `README.md` at root |
 | 5 | Concurrency | **Row-per-unit + `SELECT FOR UPDATE SKIP LOCKED`** | Acts as a queue replacement (see §4); non-blocking claim of one of 100 twin rows |
-| 6 | Extra infra | **Postgres-only (no Redis/queue)** | Follows from #5 — the row-lock model already serializes claims, so no extra component is needed (the in-memory `StockCache` lives inside the backend process) |
+| 6 | Extra infra | **Postgres-only (no Redis/queue)** | Follows from #5 — the row-lock model already serializes claims, so no extra component is needed (the in-memory `Cache`/`InMemoryCache` lives inside the backend process) |
 | 7 | API style | **Minimal REST + SSE** | `GET /api/sale/status`, `GET /api/sale/events` (SSE stream), `POST /api/purchase`, `GET /api/purchase/:userId` |
 | 8 | Default sale | **Stock = 100, duration = 10 min** | Realistic for stress test: 1000+ users fighting for 100 units |
 | 9 | User ID | **Free-form email w/ Gmail canonicalization** | Stored + UNIQUE-constrained on canonical form (`trim().toLowerCase()`; Gmail only: strip dots, strip `+tag`, `googlemail.com`→`gmail.com`); raw email kept for audit |
@@ -48,7 +48,7 @@ config via env `SALE_START`, `SALE_END`, `STOCK_QTY`.
 ```mermaid
 flowchart LR
     FE["React (Vite SPA + TS)<br/>EventSource SSE | buy | check"]
-    BE["Fastify (Node + TS)<br/>- Zod validation<br/>- rate-limit buy<br/>- server-time gate<br/>- SSE broadcaster<br/>- StockCache (in-memory)"]
+    BE["Fastify (Node + TS)<br/>- Zod validation<br/>- rate-limit buy<br/>- server-time gate<br/>- SSE broadcaster<br/>- Cache/InMemoryCache"]
     DB[("Postgres (Docker)<br/>- sale_config<br/>- stock_units (100 twin rows)<br/>- purchases (uniq canonical user)")]
     TEST["k6 (1000 VUs) +<br/>Vitest suites"]
 
@@ -131,13 +131,23 @@ model with a reaper is documented only as a future extension (§10) and is
 | Method & Path | Body / Params | Success | Failures |
 |---|---|---|---|
 | `GET /api/sale/status` | — | `200 { status: upcoming\|active\|ended, stockRemaining, totalStock, startsAt, endsAt, serverTime }` | — (never 4xx; initial load + SSE fallback) |
-| `GET /api/sale/events` | SSE (`text/event-stream`) | `200` stream of `event: status` JSON payloads (same shape as status) + `event: heartbeat` comment every 5s | — (client reconnects with backoff; falls back to status polling) |
+| `GET /api/sale/events` | SSE (`text/event-stream`) | `200` stream of `event: status` JSON payloads (same shape as status) + `:heartbeat` comment every 15s | — (client reconnects with backoff; falls back to status polling) |
 | `POST /api/purchase` | `{ "userId": "email" }` (Zod-validated, canonicalized) | `201 { result: purchased, unitId }` | `400 invalid-userId`, `403 sale-not-active`, `409 already-purchased`, `409 sold-out`, `429 rate-limited` |
-| `GET /api/purchase/:userId` | canonicalized path param | `200 { result: purchased, unitId }` or `200 { result: not-purchased }` | `400 invalid-userId` |
+| `GET /api/purchase/:userId` | canonicalized path param | `200 { result: purchased, unitId }` | `400 invalid-userId`, `404 not-purchased` |
+
+> Post-freeze footnote: this spec was frozen pre-implementation;
+> two contracts changed after the freeze and the code is authoritative.
+> Lookup-miss went `200 {result:not-purchased}` → `404 {error:not-purchased}`
+> (not-found semantics; `GET /api/purchase/:userId` for an unknown buyer is a
+> missing resource, consistent with unknown routes → `404 not-found`).
+> Heartbeat went 5s → 15s (`HEARTBEAT_MS=15000` in
+> `backend/src/interfaces/http/handlers/api/sale/index.ts`, matching
+> `backend/README.md`); 15s keeps NAT/proxy idle-connections alive with
+> one-third the idle write traffic.
 
 Notes:
 
-- `stockRemaining` is served through a `StockCache` interface
+- `stockRemaining` is served through a `Cache` interface (`InMemoryCache`)
   (`getStatus / setStatus / invalidate`) backed by an **in-memory**
   implementation: **TTL 5s + invalidate on every successful purchase**.
   The cache is strictly a read optimization — claims always hit Postgres.
@@ -204,7 +214,7 @@ Notes:
 | In-memory store | Simple but dishonest — hides real transactional behavior the reviewer wants to see |
 | Single counter + `UPDATE stock SET qty = qty - 1 WHERE qty > 0` | Correct and simpler, but serializes on one hot row and demonstrates less (no lock-skip behavior); chosen model spreads contention across 100 rows |
 | `SELECT FOR UPDATE` without `SKIP LOCKED` | Correct but blocks under contention → latency pile-up and timeouts at 1000 VUs |
-| Redis / message queue | Unnecessary once row-locks serialize claims; adds reviewer setup cost. Documented as the scaling path (§10). In-memory `StockCache` behind an interface keeps the Redis migration trivial |
+| Redis / message queue | Unnecessary once row-locks serialize claims; adds reviewer setup cost. Documented as the scaling path (§10). In-memory `Cache`/`InMemoryCache` behind an interface keeps the Redis migration trivial |
 | 3s status polling | Wasteful at 1000 users (~333 rps just for status); replaced by SSE push (one `COUNT` per ~2s tick serves all clients) |
 | WS / bidirectional socket | Overkill; sale status is server→client only, SSE is sufficient |
 | Lock-then-confirm + reaper | Unneeded complexity while claims are single-transaction; Postgres rollback already reclaims automatically |
@@ -214,7 +224,7 @@ Notes:
 
 If traffic grows 100x:
 
-- Implement `StockCache` with **Redis** instead of in-memory (same interface);
+- Implement `Cache` (`InMemoryCache` today) with **Redis** instead of in-memory (same interface);
   keep Postgres as the source of truth for claims.
 - Replace the in-memory SSE `EventEmitter` with **Redis pub/sub** so events fan
   out across Fastify replicas.

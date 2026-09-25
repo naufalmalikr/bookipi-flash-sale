@@ -22,11 +22,16 @@ export default function App(): React.JSX.Element {
   const [email, setEmail] = useState('');
   const [buying, setBuying] = useState(false);
   const [alert, setAlert] = useState<Alert | null>(null);
+  const [checkEmail, setCheckEmail] = useState('');
+  const [checking, setChecking] = useState(false);
+  const [lookup, setLookup] = useState<Alert | null>(null);
   // Single authoritative "now" per frame: the 1s tick updates this state
   // and the countdown reads it. Date.now() is never called during render,
   // so every derived time in one frame comes from the same instant.
   const [now, setNow] = useState<number>(() => Date.now());
   const clockOffset = useRef(0);
+  const buyResultRef = useRef<HTMLDivElement | null>(null);
+  const lookupResultRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     const t = setInterval(() => setNow(Date.now()), 1000);
@@ -34,6 +39,14 @@ export default function App(): React.JSX.Element {
       clearInterval(t);
     };
   }, []);
+
+  useEffect(() => {
+    if (alert !== null) buyResultRef.current?.focus();
+  }, [alert]);
+
+  useEffect(() => {
+    if (lookup !== null) lookupResultRef.current?.focus();
+  }, [lookup]);
 
   useEffect(() => {
     const controller = createFeedController({
@@ -74,6 +87,7 @@ export default function App(): React.JSX.Element {
     const userId = email.trim();
     if (userId === '') {
       setAlert({ code: 'invalid-userId', message: 'Enter an email address', tone: toneFor('invalid-userId') });
+      buyResultRef.current?.focus();
       return;
     }
     setBuying(true);
@@ -123,6 +137,38 @@ export default function App(): React.JSX.Element {
     }
   }
 
+  async function onCheck(e: React.FormEvent): Promise<void> {
+    e.preventDefault();
+    const userId = checkEmail.trim();
+    if (userId === '') {
+      setLookup({ code: 'invalid-userId', message: 'Enter an email address', tone: toneFor('invalid-userId') });
+      lookupResultRef.current?.focus();
+      return;
+    }
+    setChecking(true);
+    setLookup(null);
+    try {
+      const found = await getPurchase(userId);
+      if (found.ok) {
+        setLookup({
+          code: 'purchased',
+          message: 'Unit #' + String(found.body.unitId),
+          tone: toneFor('purchased'),
+        });
+      } else {
+        setLookup({ code: found.error, message: found.message, tone: toneFor(found.error) });
+      }
+    } catch (err) {
+      setLookup({
+        code: 'network-error',
+        message: err instanceof Error ? err.message : 'request failed',
+        tone: toneFor('network-error'),
+      });
+    } finally {
+      setChecking(false);
+    }
+  }
+
   const serverNow = now - clockOffset.current;
   let countdown = '—';
   if (payload !== null) {
@@ -167,18 +213,42 @@ export default function App(): React.JSX.Element {
           <input
             id="email"
             type="email"
+            required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@example.com"
             autoComplete="email"
           />
-          <button type="submit" disabled={buying}>
+          <button type="submit" disabled={buying} aria-busy={buying}>
             {buying ? 'Buying…' : 'Buy Now'}
           </button>
         </form>
         {alert !== null && (
-          <div className={'result ' + alert.tone} role="alert">
+          <div ref={buyResultRef} tabIndex={-1} className={'result ' + alert.tone} role="alert">
             <code className="code">[{alert.code}]</code> <span>{alert.message}</span>
+          </div>
+        )}
+      </section>
+
+      <section className="panel" aria-label="check order form">
+        <form onSubmit={(e) => void onCheck(e)}>
+          <label htmlFor="check-email">Check my order</label>
+          <input
+            id="check-email"
+            type="email"
+            required
+            value={checkEmail}
+            onChange={(e) => setCheckEmail(e.target.value)}
+            placeholder="you@example.com"
+            autoComplete="email"
+          />
+          <button type="submit" disabled={checking} aria-busy={checking}>
+            {checking ? 'Checking…' : 'Check Order'}
+          </button>
+        </form>
+        {lookup !== null && (
+          <div ref={lookupResultRef} tabIndex={-1} className={'result ' + lookup.tone} role="status">
+            <code className="code">[{lookup.code}]</code> <span>{lookup.message}</span>
           </div>
         )}
       </section>

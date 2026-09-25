@@ -8,6 +8,7 @@ import { InMemoryCache } from './repositories/cache/in-memory/index.ts';
 import { ConsoleLogger } from './repositories/logger/console/index.ts';
 import { SaleServiceImpl } from './services/sale/index.ts';
 import { PurchaseServiceImpl } from './services/purchase/index.ts';
+import { SALE_ID } from './entities/index.ts';
 import { startHttp } from './interfaces/http/index.ts';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -52,8 +53,8 @@ async function main(): Promise<void> {
       application.config.saleStart,
       application.config.saleEnd,
     );
-    await application.database.convergeUnits(1, application.config.stockQty);
-    const counts = await application.database.getCounts(1);
+    await application.database.convergeUnits(SALE_ID, application.config.stockQty);
+    const counts = await application.database.getCounts(SALE_ID);
     if (counts.total !== application.config.stockQty) {
       application.logger.warn(
         `[boot] stock diverge: sale_config stock_qty=${String(application.config.stockQty)} but stock_units rows=${String(counts.total)} (sold=${String(counts.sold)}); status totalStock will disagree with reality`,

@@ -15,7 +15,7 @@
  * - stop() closes the live source and clears both timers; no callback
  *   fires afterwards
  */
-import type { StatusPayload } from './api';
+import { isStatusPayload, type StatusPayload } from './api';
 
 export type FeedState = 'connecting' | 'live-sse' | 'polling';
 
@@ -121,12 +121,17 @@ export function createFeedController(deps: FeedDeps): FeedController {
     }
     es = source;
     source.addEventListener('status', (ev) => {
+      let parsed: unknown;
       try {
-        applyStatus(JSON.parse(String(ev.data)) as StatusPayload);
+        parsed = JSON.parse(String(ev.data)) as unknown;
       } catch {
         // Malformed frame: ignore it, keep waiting for the next one.
         return;
       }
+      if (!isStatusPayload(parsed)) {
+        return;
+      }
+      applyStatus(parsed);
       backoff = 1000;
       stopPollFallback();
       setState('live-sse');

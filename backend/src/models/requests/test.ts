@@ -64,6 +64,12 @@ describe('purchaseBodySchema invalid vectors', () => {
     expect(purchaseBodySchema.safeParse({ userId: 'x'.repeat(500) }).success).toBe(false);
   });
 
+  it('pins strict-TLD / underscore / percent divergence vs canonicalizeUserId', () => {
+    for (const userId of ['f@example.c', 'foo@exam_ple.com', 'user%tag@example.com']) {
+      expect(purchaseBodySchema.safeParse({ userId }).success).toBe(false);
+    }
+  });
+
   it('rejects missing userId and wrong key', () => {
     expect(purchaseBodySchema.safeParse({}).success).toBe(false);
     expect(purchaseBodySchema.safeParse({ user: 'a@b.com' }).success).toBe(false);

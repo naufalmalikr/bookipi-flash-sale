@@ -8,7 +8,11 @@ import type {
 } from '../../../../../models/purchase/purchase.contract.ts';
 
 export function registerPurchaseRoutes(fastify: FastifyInstance, application: Application): void {
-  fastify.get('/api/purchase/:userId', (req, reply) => {
+  // Buyer email travels in the URL path here, and Fastify access logs record
+  // req.url verbatim — so default per-request logging would persist buyer PII
+  // in plain log lines. Silence request logs for this route only; error
+  // envelopes still return normally, they just aren't access-logged.
+  fastify.get('/api/purchase/:userId', { logLevel: 'silent' }, (req, reply) => {
     void (async () => {
       const rawUserId = (req.params as { userId: string }).userId;
       let result: GetPurchaseOutput;

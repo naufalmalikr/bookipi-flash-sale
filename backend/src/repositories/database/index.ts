@@ -2,10 +2,6 @@ import type { SaleConfigRow } from '../../entities/SaleConfig.ts';
 import type { StockCounts } from '../../entities/StockCounts.ts';
 import type { ClaimResult } from '../../entities/ClaimResult.ts';
 
-export interface DatabaseTransaction {
-  query<T>(text: string, params?: unknown[]): Promise<{ rows: T[]; rowCount: number | null }>;
-}
-
 export interface Database {
   getSaleConfig(): Promise<SaleConfigRow | undefined>;
   countAvailable(saleId: number): Promise<number>;
@@ -16,7 +12,6 @@ export interface Database {
     canonical: string,
     rawUserId: string,
   ): Promise<ClaimResult>;
-  getSaleWindow(): Promise<{ startsAt: Date; endsAt: Date } | undefined>;
   ensureSchema(sql: string): Promise<void>;
   upsertSaleConfig(product: string, qty: number, start: string, end: string): Promise<void>;
   convergeUnits(saleId: number, targetQty: number): Promise<{ deleted: number | null; inserted: number | null }>;
@@ -30,4 +25,26 @@ export function isUniqueViolation(err: unknown): boolean {
     'code' in err &&
     (err as { code?: unknown }).code === '23505'
   );
+}
+
+function constraintOf(err: unknown): string {
+  if (typeof err !== 'object' || err === null || !('constraint' in err)) return '';
+  const c = (err as { constraint?: unknown }).constraint;
+  return typeof c === 'string' ? c : '';
+}
+
+/** UNIQUE(sale_id, canonical_user_id) — the one-per-user backstop. */
+export function isCanonicalUserUniqueViolation(err: unknown): boolean {
+  return isUniqueViolation(err) && constraintOf(err).includes('canonical_user_id');
+}
+
+/**
+ * UNIQUE(unit_id) — the catastrophic double-claim backstop. Must never fire:
+ * every claim holds its row via FOR UPDATE in the same txn. A hit here is an
+ * internal error, never an already-purchased.
+ */
+export function isUnitUniqueViolation(err: unknown): boolean {
+  if (!isUniqueViolation(err)) return false;
+  const c = constraintOf(err);
+  return c.includes('unit_id') && !c.includes('canonical_user_id');
 }

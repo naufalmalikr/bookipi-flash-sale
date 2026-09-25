@@ -31,14 +31,32 @@ import type {
   PurchaseCommittedEvent,
   PurchaseCommittedListener,
 } from '../../models/purchase/purchase.contract.ts';
+import { SALE_ID } from '../../entities/index.ts';
 
 const GMAIL_DOMAINS = new Set(['gmail.com', 'googlemail.com']);
+
+/**
+ * Maximum raw input length: RFC 5321 caps the email path at 254 octets.
+ * Longer inputs are rejected as invalid-userId rather than stored.
+ */
+const MAX_USERID_LENGTH = 254;
 
 export function canonicalizeUserId(raw: string): string {
   if (typeof raw !== 'string') {
     throw new Error('invalid-userId');
   }
-  const trimmed = raw.trim();
+  if (raw.length > MAX_USERID_LENGTH) {
+    throw new Error('invalid-userId');
+  }
+  // NFKC folds fullwidth/compatibility chars (e.g. fullwidth dots, U+FF0E)
+  // to their ASCII forms before validation, so spoofed separators cannot
+  // slip past the dot/whitespace checks below. Zero-width chars (U+200B
+  // etc.) have no NFKC fold and are rejected by the local/domain guards.
+  const normalized = raw.normalize('NFKC');
+  if (/[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/u.test(normalized)) {
+    throw new Error('invalid-userId');
+  }
+  const trimmed = normalized.trim();
   if (trimmed === '') {
     throw new Error('invalid-userId');
   }
@@ -134,7 +152,7 @@ export class PurchaseServiceImpl implements PurchaseService {
 
       // Fast-path repeat-buyer check (no txn, no locks).
       const prior: { unitId: number } | undefined =
-        await this.database.findPurchaseByCanonical(1, canonical);
+        await this.database.findPurchaseByCanonical(SALE_ID, canonical);
       if (prior !== undefined) {
         return { ok: false, error: 'already-purchased' };
       }
@@ -143,7 +161,7 @@ export class PurchaseServiceImpl implements PurchaseService {
       const claimed:
         | { ok: true; unitId: number }
         | { ok: false; error: 'sold-out' | 'already-purchased' } =
-        await this.database.claimPurchase(1, canonical, rawUserId);
+        await this.database.claimPurchase(SALE_ID, canonical, rawUserId);
       if (!claimed.ok) {
         // Error mapping: sold-out / already-purchased pass through verbatim.
         return { ok: false, error: claimed.error };
@@ -172,9 +190,14 @@ export class PurchaseServiceImpl implements PurchaseService {
     } catch {
       return { error: 'invalid-userId' };
     }
-    const found: { unitId: number } | undefined =
-      await this.database.findPurchaseByCanonical(1, canonical);
-    if (found === undefined) return { found: false };
-    return { found: true, unitId: found.unitId };
+    try {
+      const found: { unitId: number } | undefined =
+        await this.database.findPurchaseByCanonical(SALE_ID, canonical);
+      if (found === undefined) return { found: false };
+      return { found: true, unitId: found.unitId };
+    } catch (err) {
+      this.logger.error('purchase lookup failed', err);
+      throw err;
+    }
   }
 }

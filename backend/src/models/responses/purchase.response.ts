@@ -1,15 +1,5 @@
 import type { ErrorEnvelope } from './envelope.ts';
 
-export type PurchaseSuccess = { result: 'purchased'; unitId: number };
-
-export type PurchaseLookupOk = { result: 'purchased'; unitId: number };
-
-export type PurchaseNotPurchased = { result: 'not-purchased' };
-
-export type NotPurchased = PurchaseNotPurchased;
-
-export type PurchaseLookup = PurchaseLookupOk | PurchaseNotPurchased;
-
 export type PurchaseErrorCode =
   | 'invalid-userId'
   | 'sale-not-active'

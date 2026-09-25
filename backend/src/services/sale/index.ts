@@ -21,6 +21,7 @@ import type {
   SaleStatus,
   GetStatusOutput,
 } from '../../models/sale/sale.contract.ts';
+import { SALE_ID } from '../../entities/index.ts';
 
 export class SaleServiceImpl implements SaleService {
   private database: Database;
@@ -62,7 +63,7 @@ export class SaleServiceImpl implements SaleService {
       stockRemaining = hit.value.stockRemaining;
     } else {
       this.logger.info('[status] cache miss: countAvailable');
-      stockRemaining = await this.database.countAvailable(1);
+      stockRemaining = await this.database.countAvailable(SALE_ID);
       this.cache.setStatus({ stockRemaining, totalStock });
     }
 
@@ -86,7 +87,7 @@ export class SaleServiceImpl implements SaleService {
     );
     // SSE path: ALWAYS fresh count, deliberately bypassing the cache so
     // commit pushes never serve a stale cached count.
-    const stockRemaining: number = await this.database.countAvailable(1);
+    const stockRemaining: number = await this.database.countAvailable(SALE_ID);
     return {
       status,
       stockRemaining,
