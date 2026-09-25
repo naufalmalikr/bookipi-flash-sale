@@ -26,13 +26,15 @@ function isZodValidationError(err: unknown): err is ZodValidationError {
 }
 
 export async function buildHttpServer(application: Application): Promise<FastifyInstance> {
-  // trustProxy: behind a load balancer the client IP arrives via
-  // `X-Forwarded-For`. Without this, `request.ip` is the proxy's IP and the
-  // buy rate limiter measures the LB, not the buyer — the same single-IP
-  // class of problem as the k6 single-NAT note (solved there with
-  // `RATE_LIMIT_BUY=0`). The explicit `keyGenerator` below pins the limit
-  // key to that proxy-aware IP.
-  const fastify = Fastify({ logger: true, trustProxy: true });
+  // trustProxy (from TRUST_PROXY, default off): with no proxy in front the
+  // socket IP is the client IP, and trusting `X-Forwarded-For` would let any
+  // client rotate that header to evade the per-IP buy rate limit. Behind a
+  // real LB/proxy the opposite problem appears — request.ip is the proxy's
+  // IP and the limiter measures the LB, the same single-IP class of problem
+  // as the k6 single-NAT note (solved there with `RATE_LIMIT_BUY=0`), so set
+  // `TRUST_PROXY=1` only for that deployment. The explicit `keyGenerator`
+  // below pins the limit key to the resulting `request.ip`.
+  const fastify = Fastify({ logger: true, trustProxy: application.config.trustProxy });
 
   fastify.setValidatorCompiler(({ schema }) => {
     return (data: unknown) => {
