@@ -6,18 +6,14 @@ import {
   eventsUrl,
   type StatusPayload,
 } from './api';
+import { createFeedController, clockOffsetFrom, type FeedState } from './feed';
 import { toneFor, formatDelta } from './display';
-
-type FeedState = 'connecting' | 'live-sse' | 'polling';
 
 interface Alert {
   code: string;
   message: string;
   tone: string;
 }
-
-const MAX_BACKOFF_MS = 10000;
-const POLL_FALLBACK_MS = 5000;
 
 export default function App(): React.JSX.Element {
   const [payload, setPayload] = useState<StatusPayload | null>(null);
@@ -26,125 +22,50 @@ export default function App(): React.JSX.Element {
   const [email, setEmail] = useState('');
   const [buying, setBuying] = useState(false);
   const [alert, setAlert] = useState<Alert | null>(null);
-  const [, setNowTick] = useState<number>(Date.now());
+  // Single authoritative "now" per frame: the 1s tick updates this state
+  // and the countdown reads it. Date.now() is never called during render,
+  // so every derived time in one frame comes from the same instant.
+  const [now, setNow] = useState<number>(() => Date.now());
   const clockOffset = useRef(0);
 
   useEffect(() => {
-    const t = setInterval(() => {
-      setNowTick(Date.now());
-    }, 1000);
+    const t = setInterval(() => setNow(Date.now()), 1000);
     return () => {
       clearInterval(t);
     };
   }, []);
 
   useEffect(() => {
-    let stopped = false;
-    let es: EventSource | null = null;
-    let backoff = 1000;
-    let pollTimer: ReturnType<typeof setInterval> | undefined;
-    let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
-
-    function applyStatus(s: StatusPayload): void {
-      if (stopped) return;
-      setPayload(s);
-      setLoadError(null);
-      const parsed = Date.parse(s.serverTime);
-      if (!Number.isNaN(parsed)) {
-        clockOffset.current = Date.now() - parsed;
-      }
-    }
-
-    function stopPollFallback(): void {
-      if (pollTimer !== undefined) {
-        clearInterval(pollTimer);
-        pollTimer = undefined;
-      }
-    }
-
-    async function pollOnce(): Promise<void> {
-      try {
-        const s = await getStatus();
-        applyStatus(s);
-      } catch {
-        // Poll failures are silent; the next 5s tick retries.
-      }
-    }
-
-    function startPollFallback(): void {
-      if (pollTimer !== undefined) return;
-      setFeed('polling');
-      pollTimer = setInterval(() => {
-        void pollOnce();
-      }, POLL_FALLBACK_MS);
-    }
-
-    function scheduleReconnect(connect: () => void): void {
-      if (stopped || reconnectTimer !== undefined) return;
-      const delay = Math.min(backoff, MAX_BACKOFF_MS);
-      backoff = Math.min(backoff * 2, MAX_BACKOFF_MS);
-      reconnectTimer = setTimeout(() => {
-        reconnectTimer = undefined;
-        connect();
-      }, delay);
-    }
-
-    function connect(): void {
-      if (stopped) return;
-      let source: EventSource;
-      try {
-        source = new EventSource(eventsUrl());
-      } catch {
-        startPollFallback();
-        scheduleReconnect(connect);
-        return;
-      }
-      es = source;
-      source.addEventListener('status', (ev) => {
-        try {
-          const data = JSON.parse((ev as MessageEvent).data as string) as StatusPayload;
-          applyStatus(data);
-        } catch {
-          return;
-        }
-        backoff = 1000;
-        stopPollFallback();
-        if (!stopped) setFeed('live-sse');
-      });
-      source.onerror = (): void => {
-        try {
-          source.close();
-        } catch {
-          // close() is best-effort; reconnect proceeds regardless.
-        }
-        if (es === source) es = null;
-        if (stopped) return;
-        startPollFallback();
-        scheduleReconnect(connect);
-      };
-    }
-
-    void (async () => {
-      try {
-        const s = await getStatus();
-        applyStatus(s);
-      } catch (err) {
-        if (!stopped) {
-          setLoadError(err instanceof Error ? err.message : 'status load failed');
-        }
-      }
-    })();
-    connect();
-
+    const controller = createFeedController({
+      url: eventsUrl(),
+      fetchStatus: getStatus,
+      now: () => Date.now(),
+      makeEventSource: (url) => {
+        const source = new EventSource(url);
+        return {
+          addEventListener: (type, listener) => {
+            source.addEventListener(type, (ev) => listener(ev as unknown as { data: unknown }));
+          },
+          onError: (listener) => {
+            source.onerror = listener;
+          },
+          close: () => source.close(),
+        };
+      },
+      onState: setFeed,
+      onStatus: (s, offsetMs) => {
+        setPayload(s);
+        setLoadError(null);
+        if (offsetMs !== null) clockOffset.current = offsetMs;
+      },
+      onLoadError: setLoadError,
+      setTimeout: (handler, ms) => window.setTimeout(handler, ms),
+      clearTimeout: (id) => window.clearTimeout(id),
+      setInterval: (handler, ms) => window.setInterval(handler, ms),
+      clearInterval: (id) => window.clearInterval(id),
+    });
     return () => {
-      stopped = true;
-      try {
-        es?.close();
-      } catch {
-        // Best-effort teardown.
-      }
-      stopPollFallback();
-      if (reconnectTimer !== undefined) clearTimeout(reconnectTimer);
+      controller.stop();
     };
   }, []);
 
@@ -182,8 +103,8 @@ export default function App(): React.JSX.Element {
           try {
             const s = await getStatus();
             setPayload(s);
-            const parsed = Date.parse(s.serverTime);
-            if (!Number.isNaN(parsed)) clockOffset.current = Date.now() - parsed;
+            const offset = clockOffsetFrom(s.serverTime, Date.now());
+            if (offset !== null) clockOffset.current = offset;
           } catch {
             // Status refresh is best-effort; SSE/poll will catch up.
           }
@@ -202,7 +123,7 @@ export default function App(): React.JSX.Element {
     }
   }
 
-  const serverNow = Date.now() - clockOffset.current;
+  const serverNow = now - clockOffset.current;
   let countdown = '—';
   if (payload !== null) {
     if (payload.status === 'upcoming') {

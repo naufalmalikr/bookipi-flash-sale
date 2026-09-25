@@ -1,5 +1,5 @@
 /**
- * Todo 10: frontend API helpers.
+ * Frontend API helpers.
  *
  * base = import.meta.env.VITE_API_URL ?? '' — absolute backend URL in
  * compose browsers (VITE_API_URL=http://localhost:3001); empty in local

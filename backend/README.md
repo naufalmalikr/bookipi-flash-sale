@@ -128,7 +128,7 @@ sequenceDiagram
     P->>P: canonicalizeUserId() (throw -> invalid-userId)
     P->>D: getSaleConfig()
     P->>P: computeGate(start, end, Date.now()) (fail -> sale-not-active)
-    P->>D: hasPriorPurchase(1, canonical) (true -> already-purchased)
+    P->>D: findPurchaseByCanonical(1, canonical) (found -> already-purchased)
     P->>D: claimPurchase(1, canonical, raw)
     Note over D: BEGIN → in-txn window re-gate → SELECT ... FOR UPDATE SKIP LOCKED LIMIT 1 → UPDATE sold + INSERT purchase → COMMIT
     alt no row
@@ -146,8 +146,10 @@ sequenceDiagram
 Points:
 
 - Two gates: pre-txn (fast fail) + in-txn (authoritative). Clock is always server `Date.now()`.
-- Fast-path repeat check avoids opening a txn for known buyers.
-- Same-user race still safe: `UNIQUE(sale_id, canonical_user_id)` converts to `already-purchased`.
+- Both gate copies delegate to the same pure `computeGate` (`src/utilities`), so the window boundary can only change in one place.
+- Fast-path repeat check (`findPurchaseByCanonical`) avoids opening a txn for known buyers.
+- Same-user race still safe: `UNIQUE(sale_id, canonical_user_id)` converts a concurrent duplicate to `already-purchased` (23505) while stock remains.
+- Exhausted claim returns `sold-out` deterministically. A same-user request that slips past the fast path in the instant before the winner commits can then read `sold-out` instead of `already-purchased` — an accepted mislabel (the UNIQUE constraint still guarantees one purchase per user).
 - `SKIP LOCKED` skips rows locked by concurrent txns. 1,000-way contention fails fast to `409`, not queue pile-up.
 - Cache invalidation happens on commit only. Claim path never reads cache.
 - SSE listener failure never breaks the claim response (try/catch per callback).
@@ -213,6 +215,7 @@ Notes:
 | `SALE_PRODUCT` | `Bookipi Flash Widget` | Free text |
 | `RATE_LIMIT_BUY` | `10` | Req/min/IP on buy route. `0` disables. |
 | `PG_POOL_MAX` | `50` | Positive int, else warn + fallback |
+| `TRUST_PROXY` | `0` | `1`/`true` enables `X-Forwarded-For` trust. Keep `0` unless a trusted proxy fronts the backend; otherwise clients can rotate the header to evade the buy rate limit. |
 
 ## File map
 
@@ -226,6 +229,7 @@ Notes:
 | `src/interfaces/http/handlers/api/sale/` | Status route, SSE hijack, tick/heartbeat timers |
 | `src/services/purchase/` | Canonicalize, gate, claim orchestration, broadcast |
 | `src/services/sale/` | `computeSaleState`, `getStatus`, `buildStatusPayload` |
+| `src/utilities/` | `computeGate` — the single copy of the window boundary rule |
 | `src/repositories/database/postgresql/` | All SQL: config, counts, claim txn, converge |
 | `src/repositories/cache/` | `Cache` interface + `InMemoryCache` (`TTL_MS 5000`) |
 | `src/repositories/logger/` | `Logger` interface + `ConsoleLogger` |

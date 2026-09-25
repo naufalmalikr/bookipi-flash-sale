@@ -12,10 +12,9 @@ export default defineConfig({
     testTimeout: 60000,
     hookTimeout: 60000,
     pool: 'forks',
-    // NOTE: vitest 5 prints a "poolOptions removed in Vitest 4" deprecation
-    // warning for the line below, but singleFork still takes effect on the
-    // pinned vitest 5.0.1 (verbose run shows sequential single-file exec).
-    // Migrate to top-level pool options only when bumping vitest major.
+    // Single fork: the integration tests mutate shared DB state and must run
+    // in one process in order. This is the vitest-5 form of the option; move
+    // it under top-level pool config when the next vitest major lands.
     poolOptions: { forks: { singleFork: true } },
     sequence: { shuffle: false },
   },

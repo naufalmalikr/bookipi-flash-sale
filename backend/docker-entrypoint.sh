@@ -1,5 +1,5 @@
 #!/bin/sh
-# Todo 4 entrypoint: wait for postgres (retry/backoff, no crash-loop),
+# Entrypoint: wait for postgres (retry/backoff, no crash-loop),
 # then exec the BUILT output. dist/index.js is primary (Dockerfile runs
 # `npm run build --workspace=backend`); src/index.js kept only as a
 # dev-mode fallback note — compose always ships the built bundle.

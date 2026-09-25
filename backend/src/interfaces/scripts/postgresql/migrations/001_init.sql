@@ -1,4 +1,4 @@
--- Flash-sale schema (Todo 3).
+-- Flash-sale schema.
 -- Run: psql "$DATABASE_URL" -f backend/src/interfaces/scripts/postgresql/migrations/001_init.sql
 -- Idempotent: safe to re-run (CREATE TABLE / INDEX IF NOT EXISTS).
 

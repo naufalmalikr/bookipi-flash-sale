@@ -7,6 +7,10 @@ import pg from 'pg';
 import type { Pool as PgPool, PoolClient as PgPoolClient } from 'pg';
 import type { Database } from '../index.ts';
 import { isUniqueViolation } from '../index.ts';
+// computeGate is a pure function (no SQL, no I/O). Importing it here keeps
+// the in-transaction window re-gate byte-identical to the pre-transaction
+// gate and the status endpoint — the rule lives in one place.
+import { computeGate } from '../../../utilities/index.ts';
 
 // ../../Config.js does not exist yet — local shape mirrors
 // AppConfig{databaseUrl:string, poolMax:number}. Config is injected via
@@ -89,15 +93,6 @@ export class PostgresDatabase implements Database {
     return { unitId: row.unit_id };
   }
 
-  async hasPriorPurchase(saleId: number, canonical: string): Promise<boolean> {
-    const res = await this.pool.query<{ id: number }>(
-      `SELECT id FROM purchases
-        WHERE sale_id = $1 AND canonical_user_id = $2 LIMIT 1`,
-      [saleId, canonical],
-    );
-    return (res.rowCount ?? 0) > 0;
-  }
-
   async claimPurchase(
     saleId: number,
     canonical: string,
@@ -116,9 +111,10 @@ export class PostgresDatabase implements Database {
         await client.query('ROLLBACK');
         throw new Error('sale-not-configured');
       }
-      // In-txn window gate (inclusive both ends, mirrors computeSaleState).
+      // In-transaction window re-gate: same shared boundary rule as the
+      // pre-txn gate and the status endpoint (utilities/computeGate).
       const nowMs = Date.now();
-      if (nowMs < winRow.starts_at.getTime() || nowMs > winRow.ends_at.getTime()) {
+      if (!computeGate(winRow.starts_at.getTime(), winRow.ends_at.getTime(), nowMs)) {
         await client.query('ROLLBACK');
         throw new Error('sale-not-active');
       }
@@ -131,29 +127,18 @@ export class PostgresDatabase implements Database {
       const unitRow = claimed.rows[0];
       if (unitRow === undefined) {
         await client.query('ROLLBACK');
-        // Same-user duplicate at exact exhaustion would otherwise report
-        // sold-out: SKIP LOCKED finds nothing, so the UNIQUE path never
-        // fires. Re-check after rollback; if this buyer's row landed (now
-        // or after a short settle for the winner's commit), be truthful.
-        const hasPriorRow = async (): Promise<boolean> => {
-          try {
-            const prior = await (client as PgPoolClient).query<{ id: number }>(
-              `SELECT id FROM purchases
-                WHERE sale_id = $1 AND canonical_user_id = $2 LIMIT 1`,
-              [saleId, canonical],
-            );
-            return (prior.rowCount ?? 0) > 0;
-          } catch {
-            return false;
-          }
-        };
-        if (await hasPriorRow()) {
-          return { ok: false, error: 'already-purchased' };
-        }
-        await new Promise((resolve) => setTimeout(resolve, 100));
-        if (await hasPriorRow()) {
-          return { ok: false, error: 'already-purchased' };
-        }
+        // Exhausted. Deliberately no "did this buyer just win elsewhere?"
+        // re-check here. The pre-txn findPurchaseByCanonical fast path
+        // already answers that truthfully for every duplicate whose
+        // purchase has committed, and while stock remains a concurrent
+        // duplicate dies on UNIQUE(sale_id, canonical_user_id) ->
+        // already-purchased. The one residual hole is a same-user request
+        // that passes the fast path in the instant before the winner's
+        // commit AND finds no free unit afterwards: it is then told
+        // `sold-out` instead of the more precise `already-purchased`. That
+        // is a mislabel, not a lost guarantee — the UNIQUE constraint plus
+        // the all-or-nothing claim transaction still make one-purchase-per-
+        // user and zero-oversell structurally impossible.
         return { ok: false, error: 'sold-out' };
       }
       const unitId: number = unitRow.id;

@@ -16,6 +16,7 @@ import type { Cache } from '../../repositories/cache/index.ts';
 import type { Logger } from '../../repositories/logger/index.ts';
 import type { SaleConfigRow } from '../../entities/SaleConfig.ts';
 import type { SaleService } from '../index.ts';
+import { computeGate } from '../../utilities/index.ts';
 import type {
   SaleStatus,
   GetStatusOutput,
@@ -37,9 +38,12 @@ export class SaleServiceImpl implements SaleService {
     e: number,
     n: number,
   ): { status: SaleStatus } {
+    // The boundary verdict is shared (utilities/computeGate); this derives
+    // the status label from it so the claim gate and the status endpoint
+    // cannot disagree about where the window opens and closes.
+    if (computeGate(s, e, n)) return { status: 'active' };
     if (n < s) return { status: 'upcoming' };
-    if (n > e) return { status: 'ended' };
-    return { status: 'active' };
+    return { status: 'ended' };
   }
 
   async getStatus(nowMs: number = Date.now()): Promise<GetStatusOutput> {

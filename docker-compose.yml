@@ -39,6 +39,9 @@ services:
       STOCK_QTY: ${STOCK_QTY:-100}
       RATE_LIMIT_BUY: ${RATE_LIMIT_BUY:-10}
       PG_POOL_MAX: ${PG_POOL_MAX:-50}
+      # Only set TRUST_PROXY=1 when a trusted proxy/LB actually fronts the
+      # backend; default off so X-Forwarded-For cannot spoof the rate-limit key.
+      TRUST_PROXY: ${TRUST_PROXY:-0}
     depends_on:
       postgres:
         condition: service_healthy
@@ -47,10 +50,13 @@ services:
     build:
       context: .
       dockerfile: ./frontend/Dockerfile
+      # Vite bakes VITE_API_URL into the bundle at build time, so it is a
+      # build arg (not runtime env): browsers open the SPA but call the
+      # backend directly at this absolute URL.
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
     ports:
       - "5173:5173"
-    environment:
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:3001}
     depends_on:
       backend:
         condition: service_started

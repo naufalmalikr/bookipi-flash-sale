@@ -16,7 +16,6 @@ describe('PostgresDatabase offline', () => {
       'countAvailable',
       'getCounts',
       'findPurchaseByCanonical',
-      'hasPriorPurchase',
       'claimPurchase',
       'getSaleWindow',
       'ensureSchema',

@@ -8,6 +8,7 @@ export interface AppConfig {
   saleProduct: string;
   rateLimitBuy: number;
   poolMax: number;
+  trustProxy: boolean;
 }
 
 const Z_UTC_RE = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z$/;
@@ -94,5 +95,23 @@ export function loadConfig(): AppConfig {
     }
   }
 
-  return { port, databaseUrl, saleStart, saleEnd, stockQty, saleProduct, rateLimitBuy, poolMax };
+  // TRUST_PROXY: only enable when a trusted reverse proxy / LB actually
+  // fronts this backend. With it unset, `X-Forwarded-For` is ignored, so a
+  // remote client cannot rotate that header to evade the per-IP buy rate
+  // limit (review finding m1).
+  const trustProxyRaw: string | undefined = process.env['TRUST_PROXY'];
+  const trustProxy =
+    trustProxyRaw === '1' || (trustProxyRaw ?? '').toLowerCase() === 'true';
+
+  return {
+    port,
+    databaseUrl,
+    saleStart,
+    saleEnd,
+    stockQty,
+    saleProduct,
+    rateLimitBuy,
+    poolMax,
+    trustProxy,
+  };
 }

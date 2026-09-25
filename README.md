@@ -58,16 +58,17 @@ it deletes the Postgres volume that holds the stress proof).
 Compose is the supported path, though both apps also run on the host.
 Postgres stays in Docker either way (host port `5432` is mapped, so
 host-side code can reach it at `localhost:5432`).
-Compose serves the Vite **dev** server on `:5173`, not a production build
-(`frontend/Dockerfile` runs `npm run dev`); `npm --prefix frontend run build`
-is the prod-bundle check.
+Compose builds the SPA (`npm run build` with `VITE_API_URL` as a build arg,
+set at build time because Vite inlines it) and serves the static bundle from
+nginx on `:5173` — no dev server in the loop; deep links fall back to
+`index.html`.
 
 ```sh
 docker compose up --build -d          # full stack
 docker compose logs -f backend        # backend logs
 npm --prefix backend run dev          # host backend (needs PG up + DATABASE_URL at localhost)
 npm --prefix frontend run dev         # host Vite dev server
-npm --prefix frontend run build       # production frontend build check
+npm --prefix frontend run build       # production frontend build (what compose serves)
 ```
 
 Env knobs (`SALE_START`, `SALE_END`, `STOCK_QTY`, `DATABASE_URL`, `PORT=3001`,
@@ -113,7 +114,7 @@ serializes claims. That single idea drives the rest.
 | `StockCache` (TTL 5s + invalidate) | `GET /api/sale/status` serves `stockRemaining` through an in-memory cache behind a `getStatus/setStatus/invalidate` interface; every purchase commit invalidates it | Status reads cost one `COUNT` per 5s window instead of one per poll. The claim path never touches the cache, it always hits Postgres authoritatively, so stale reads can't oversell. Swapping to Redis later means reimplementing the same interface. |
 | SSE vs WebSocket vs polling | `GET /api/sale/events` pushes `event: status` on each purchase commit, window transition, and ~2s tick; `EventSource` in the SPA with status-poll fallback | Sale updates flow server to client only, so bidirectional sockets add nothing. Plain 3s polling at 1,000 users would burn ~333 rps just for status; one `COUNT` per tick now serves every connected client. |
 | Gmail canonical, backend-authoritative | `canonicalizeUserId()` trims and lowercases; Gmail only (`gmail.com`/`googlemail.com`): strip dots, strip `+tag`, fold `googlemail.com` to `gmail.com`. Raw email is kept for audit; the UNIQUE constraint sits on the canonical form | `foobar@gmail.com`, `foo.bar@gmail.com`, `foobar+baz@gmail.com` count as one buyer (second try gets `409 already-purchased`), while `u.s.e.r@outlook.com` stays distinct from `user@outlook.com`. The frontend must not strip dots or tags itself; curl and k6 callers get identical enforcement because the backend owns the rule. |
-| Rate limit, buy route only | `@fastify/rate-limit` on `POST /api/purchase`: 10 req/min/IP by default (`RATE_LIMIT_BUY`), `429 { error: "rate-limited" }`; status/SSE routes unlimited | The hot path gets abuse protection without throttling status reads. For k6 the limit is disabled at boot (`RATE_LIMIT_BUY=0`, see Stress) because all VUs share one source IP; production compose omits the override so the default applies. |
+| Rate limit, buy route only | `@fastify/rate-limit` on `POST /api/purchase`: 10 req/min/IP by default (`RATE_LIMIT_BUY`), `429 { error: "rate-limited" }`; status/SSE routes unlimited; `X-Forwarded-For` is trusted only with `TRUST_PROXY=1` (default off, so clients cannot rotate the header to evade the per-IP key) | The hot path gets abuse protection without throttling status reads. For k6 the limit is disabled at boot (`RATE_LIMIT_BUY=0`, see Stress) because all VUs share one source IP; production compose omits the override so the default applies. |
 | No Redis, no queue, no WS server | Postgres-only compose: `postgres` + `backend` + `frontend`. In-memory `StockCache` and `EventEmitter` inside the single backend process | One-command review with no extra setup, and the row-lock model already serializes claims, so Redis would add cost without adding safety. Timeout/reclaim logic isn't needed either: a crashed claim rolls back and its row stays `available`. Redis, pub/sub, and queues stay as a documented future lane (see diagram + Scaling). |
 
 ## System diagram
@@ -172,19 +173,24 @@ so any drift means the doc is stale, not the build.
 
 ## Tests
 
-Unit suites cover canonicalization vectors, window-gate boundaries, error-code
-mapping, and Zod schemas. Frontend covers pure display helpers (`toneFor`,
-`formatDelta`) with Vitest. Integration suites run against real Postgres 18.6
-in Docker: lifecycle (`upcoming` to `active` to `ended`), Gmail-variant `409`,
-sold-out path, same-user concurrent duplicate at exact exhaustion (one `201` +
-one `409 already-purchased`), SSE delivery on purchase, 5-stock/50-parallel
-exact-5 probe (exactly 5 `201`s, `sold <= 5`, uniqueness holds), and
+Unit suites cover canonicalization vectors, window-gate boundaries (all
+call sites share one pure `computeGate`), error-code mapping, and Zod
+schemas. Frontend covers pure display helpers (`toneFor`, `formatDelta`)
+plus the SSE feed controller extracted from `App.tsx` (reconnect backoff
+doubling/cap/reset, poll fallback, teardown). Integration suites run against
+real Postgres 18.6 in Docker: lifecycle (`upcoming` to `active` to `ended`),
+Gmail-variant `409`, sold-out path, same-user concurrent duplicate at exact
+exhaustion (one `201`; the duplicate reads `already-purchased` or — accepted
+exhaustion edge — `sold-out`, and a post-commit repeat always reads
+`already-purchased`), a concurrent duplicate with stock remaining (23505 →
+`already-purchased`), SSE delivery on purchase, 5-stock/50-parallel
+exact-5 probe (exactly 5 `201`s, `sold == 5`, uniqueness holds), and
 crash-rollback proof (aborted claim leaves row `available`).
 
 ```sh
-npm --prefix backend run test              # unit, 7 files / 46 tests green
-npm --prefix backend run test:integration  # integration vs real PG, 7 tests green
-npm --prefix frontend run test             # frontend, 1 file / 6 tests green
+npm --prefix backend run test              # unit, 8 files / 53 tests green
+npm --prefix backend run test:integration  # integration vs real PG, 9 tests green
+npm --prefix frontend run test             # frontend, 2 files / 16 tests green
 ```
 
 The exact-5 probe is the small-scale twin of the stress proof: 50 parallel
@@ -219,6 +225,9 @@ the commands above):
 
 - HTTP census: **100 x `201`** + **124,884 x `409`** + **0 other**
   (124,984 requests total; every non-201 is post-exhaustion `sold-out`).
+- Latency profile (same run): `201` p95 ≈ 11ms / max 31ms;
+  `409 sold-out` p95 ≈ 792ms — that bucket still includes the since-removed
+  100ms settle sleep plus 1,000-VU lock-queue wait.
 - DB counts: `purchases == 100`, `sold == 100`
   (`SELECT count(*) FROM purchases` and
   `SELECT count(*) FROM stock_units WHERE status='sold'`).
@@ -226,6 +235,10 @@ the commands above):
   100 distinct buyer emails.
 - k6: exit 0, `checks` 249,968/249,968 pass (`rate>0.99` gate);
   `http_req_failed` ~0.9991 is informational only (k6 flags expected 409s).
+- One-item-per-user under load: the `duplicate` scenario (10 fixed emails
+  hammered for 30s) answered **10 × `201` + 65,832 × `409 already-purchased`
+  + 0 other**, `dup_soldout == 0`, `purchases == 10`, 0 duplicate canonical
+  users or units (fresh seed).
 
 Current repo state: the durable k6 proof is `stress/results-summary.json`
 (census: HTTP 100 x `201` + 124,884 x `409` + 0 other; DB `purchases == 100`,
