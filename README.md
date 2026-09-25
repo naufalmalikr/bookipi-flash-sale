@@ -19,6 +19,16 @@ From a cold clone, one command brings up Postgres + backend + frontend:
 cp .env.example .env && docker compose up --build -d
 ```
 
+No `npm ci` needed for this path — the images install dependencies at build
+time. (Host-side commands below — `run dev`, `run test`, `run build` — do
+need `npm ci` once from a clean clone; see Tests.)
+
+> Window timing: with empty `SALE_START`/`SALE_END` the backend defaults to
+> now+60s → now+10min, so the sale opens **60 seconds after boot**. If the
+> smoke purchase below returns `403 sale-not-active`, the window just hasn't
+> opened yet — wait a minute and retry, or boot with an already-ACTIVE
+> window using the stress snippet (starts now-1min).
+
 Time rule: `SALE_START` / `SALE_END` must be UTC ISO-8601 with a trailing `Z`
 (e.g. `2026-09-23T07:40:00Z`). Offsets like `+02:00` or naive datetimes are
 rejected at backend boot. You'll find a generator snippet in `.env.example`.
@@ -31,7 +41,9 @@ curl -s localhost:3001/api/sale/status   # expect status + stockRemaining shape
 curl -s -o /dev/null -w "%{http_code}\n" localhost:5173/   # expect 200
 ```
 
-Smoke purchase (fresh seed: 201; on a consumed DB expect `409 sold-out`):
+Smoke purchase (fresh seed: 201; on a consumed DB expect `409 sold-out`;
+`403 sale-not-active` means the default 60s-delayed window hasn't opened yet —
+wait and retry, or boot ACTIVE via the stress snippet):
 
 ```sh
 curl -s -X POST localhost:3001/api/purchase \
@@ -188,6 +200,7 @@ exact-5 probe (exactly 5 `201`s, `sold == 5`, uniqueness holds), and
 crash-rollback proof (aborted claim leaves row `available`).
 
 ```sh
+npm ci                               # once from a clean clone (host-side commands need node_modules)
 npm --prefix backend run test              # unit, 8 files / 53 tests green
 npm --prefix backend run test:integration  # integration vs real PG, 9 tests green
 npm --prefix frontend run test             # frontend, 2 files / 16 tests green
@@ -208,6 +221,9 @@ booted with `RATE_LIMIT_BUY=0` (single-NAT VUs share one IP, so the default
 10/min limit would measure the limiter, not the claim path).
 
 ```sh
+# GNU date (-d). macOS/BSD + portable (python3, works everywhere):
+#   SALE_START=$(python3 -c "import datetime;print((datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(minutes=1)).strftime('%Y-%m-%dT%H:%M:%SZ'))") \
+#   SALE_END=$(python3 -c "import datetime;print((datetime.datetime.now(datetime.timezone.utc)+datetime.timedelta(minutes=10)).strftime('%Y-%m-%dT%H:%M:%SZ'))") \
 SALE_START=$(date -u -d '-1 min' +%Y-%m-%dT%H:%M:%SZ) \
 SALE_END=$(date -u -d '+10 min' +%Y-%m-%dT%H:%M:%SZ) \
 STOCK_QTY=100 RATE_LIMIT_BUY=0 \

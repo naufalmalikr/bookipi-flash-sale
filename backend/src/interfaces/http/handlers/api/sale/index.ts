@@ -140,19 +140,32 @@ export function registerSaleRoutes(fastify: FastifyInstance, application: Applic
       }
       reply.hijack();
       const raw: ServerResponse = reply.raw;
+      // reply.hijack() bypasses @fastify/cors, so set the CORS header
+      // explicitly — otherwise a strict browser EventSource from the
+      // compose frontend (:5173 -> :3001) fails the cross-origin check
+      // and silently falls back to polling. Reflect the origin to match
+      // the `cors: { origin: true }` policy on non-hijacked routes.
+      const origin = req.headers.origin;
       raw.writeHead(200, {
         'Content-Type': 'text/event-stream',
         'Cache-Control': 'no-cache',
         Connection: 'keep-alive',
+        'Access-Control-Allow-Origin':
+          typeof origin === 'string' && origin.length > 0 ? origin : '*',
+        Vary: 'Origin',
       });
       hub.lastStatus = initial.status;
       raw.write(formatStatus(initial));
       hub.clients.add(raw);
       ensureTimers(hub, application, logInfo);
-      req.raw.on('close', () => {
+      const drop = (): void => {
         hub.clients.delete(raw);
         maybeStopTimers(hub);
-      });
+      };
+      req.raw.on('close', drop);
+      // A dead socket never emits 'close' on req.raw promptly; without
+      // this the hub keeps writing into a broken pipe on every tick.
+      raw.on('error', drop);
     })();
   });
 }

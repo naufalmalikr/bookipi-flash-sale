@@ -8,13 +8,18 @@
  * Census recomputed from raw: HTTP status counts, per-status
  * http_req_duration percentiles, peak VUs, total
  * iterations, checks totals. SQL-level facts cannot be derived from the k6
- * dump — those are carried over verbatim from the existing summary (or the
- * previous one) so a regenerated file never invents DB counts.
+ * dump — they must be supplied explicitly via --sql-file (JSON file from a
+ * fresh post-run verification query) or --sql '<json>'. The script refuses
+ * to carry the sql block over from the previous summary, so regenerating
+ * from a new results.json can never silently keep stale DB counts.
  *
- * Usage: node stress/summarize.mjs [--in FILE] [--merge FILE] [--out FILE] [--stdout]
+ * Usage: node stress/summarize.mjs --sql-file sql.json [--in FILE] [--merge FILE] [--out FILE] [--stdout]
+ *   --sql-file JSON file with fresh post-run SQL counts, e.g.
+ *            {"purchases":100,"sold":100,"dup_canonical":0,"dup_unit":0,"distinct_emails":100}
+ *   --sql    same payload inline as a JSON string (alternative to --sql-file)
  *   --in     raw k6 json (default stress/results.json)
- *   --merge  summary whose sql/assertions/k6 metadata is carried over
- *            (default stress/results-summary.json)
+ *   --merge  summary whose assertions/k6 metadata/run/proof is carried over
+ *            (default stress/results-summary.json; its sql block is IGNORED)
  *   --out    write result here (default stress/results-summary.json);
  *            with --stdout nothing is written.
  */
@@ -34,9 +39,43 @@ const rawPath = path.resolve(process.cwd(), argValue('--in', path.join(scriptDir
 const mergePath = path.resolve(process.cwd(), argValue('--merge', path.join(scriptDir, 'results-summary.json')));
 const outPath = path.resolve(process.cwd(), argValue('--out', mergePath));
 const toStdout = process.argv.includes('--stdout');
+const sqlInline = argValue('--sql', undefined);
+const sqlFile = argValue('--sql-file', undefined);
 
 if (!existsSync(rawPath)) {
   console.error(`raw k6 file not found: ${rawPath}`);
+  process.exit(1);
+}
+
+// SQL facts are not derivable from the k6 dump. Refuse to carry them over
+// from the previous summary — a fresh verification query is mandatory, so a
+// regenerated file can never silently keep stale DB counts.
+let sqlBlock = null;
+if (sqlInline !== undefined) {
+  try {
+    sqlBlock = JSON.parse(sqlInline);
+  } catch {
+    console.error('--sql must be valid JSON, e.g. --sql \'{"purchases":100,"sold":100}\'');
+    process.exit(1);
+  }
+} else if (sqlFile !== undefined) {
+  const sqlPath = path.resolve(process.cwd(), sqlFile);
+  if (!existsSync(sqlPath)) {
+    console.error(`sql file not found: ${sqlPath}`);
+    process.exit(1);
+  }
+  try {
+    sqlBlock = JSON.parse(readFileSync(sqlPath, 'utf8'));
+  } catch {
+    console.error(`sql file is not valid JSON: ${sqlPath}`);
+    process.exit(1);
+  }
+} else {
+  console.error(
+    'missing fresh SQL counts: pass --sql-file <path> or --sql \'<json>\' ' +
+      'with post-run verification results (purchases, sold, dup_canonical, dup_unit, distinct_emails). ' +
+      'The previous summary sql block is never reused.',
+  );
   process.exit(1);
 }
 
@@ -146,14 +185,12 @@ if (existsSync(mergePath)) {
   }
 }
 
-const sqlBlock = merged.sql ?? null;
-
 const summary = {
   assertions: merged.assertions ?? null,
   derived_by:
     'stress/summarize.mjs census of raw results.json (streaming NDJSON parse): ' +
     'HTTP status counts, per-status http_req_duration percentiles, peak VUs, iterations, checks; ' +
-    'sql block carried over from the original recorded census (SQL is not derivable from the k6 dump); ' +
+    'sql block supplied explicitly via --sql/--sql-file (never carried over); ' +
     'raw file git-ignored, reproducible via stress/README.md',
   http_req_duration_ms: durationMs,
   http_status_census: census,

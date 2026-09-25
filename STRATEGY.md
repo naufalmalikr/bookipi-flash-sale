@@ -131,9 +131,19 @@ model with a reaper is documented only as a future extension (§10) and is
 | Method & Path | Body / Params | Success | Failures |
 |---|---|---|---|
 | `GET /api/sale/status` | — | `200 { status: upcoming\|active\|ended, stockRemaining, totalStock, startsAt, endsAt, serverTime }` | — (never 4xx; initial load + SSE fallback) |
-| `GET /api/sale/events` | SSE (`text/event-stream`) | `200` stream of `event: status` JSON payloads (same shape as status) + `event: heartbeat` comment every 5s | — (client reconnects with backoff; falls back to status polling) |
+| `GET /api/sale/events` | SSE (`text/event-stream`) | `200` stream of `event: status` JSON payloads (same shape as status) + `:heartbeat` comment every 15s | — (client reconnects with backoff; falls back to status polling) |
 | `POST /api/purchase` | `{ "userId": "email" }` (Zod-validated, canonicalized) | `201 { result: purchased, unitId }` | `400 invalid-userId`, `403 sale-not-active`, `409 already-purchased`, `409 sold-out`, `429 rate-limited` |
-| `GET /api/purchase/:userId` | canonicalized path param | `200 { result: purchased, unitId }` or `200 { result: not-purchased }` | `400 invalid-userId` |
+| `GET /api/purchase/:userId` | canonicalized path param | `200 { result: purchased, unitId }` | `400 invalid-userId`, `404 not-purchased` |
+
+> Post-freeze footnote: this spec was frozen pre-implementation;
+> two contracts changed after the freeze and the code is authoritative.
+> Lookup-miss went `200 {result:not-purchased}` → `404 {error:not-purchased}`
+> (not-found semantics; `GET /api/purchase/:userId` for an unknown buyer is a
+> missing resource, consistent with unknown routes → `404 not-found`).
+> Heartbeat went 5s → 15s (`HEARTBEAT_MS=15000` in
+> `backend/src/interfaces/http/handlers/api/sale/index.ts`, matching
+> `backend/README.md`); 15s keeps NAT/proxy idle-connections alive with
+> one-third the idle write traffic.
 
 Notes:
 

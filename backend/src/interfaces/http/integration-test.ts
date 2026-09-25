@@ -36,7 +36,7 @@ function isoAt(offsetMs: number): string {
   return new Date(Date.now() + offsetMs).toISOString();
 }
 
-function buildTestApplication(): { application: Application; client: PgClient } {
+function buildTestApplication(rateLimitBuy = 0): { application: Application; client: PgClient } {
   const client = new PgClient({ connectionString: CONNECTION_STRING });
   const config = {
     port: 0,
@@ -45,7 +45,7 @@ function buildTestApplication(): { application: Application; client: PgClient } 
     saleEnd: isoAt(600_000),
     stockQty: 5,
     saleProduct: 'Flash Widget',
-    rateLimitBuy: 0,
+    rateLimitBuy,
     poolMax: 10,
     trustProxy: false,
   };
@@ -423,6 +423,45 @@ describe('exact-5 under 50 parallel callers', () => {
     expect(bought).toBe(5);
     expect(dupCanonical).toBe(0);
     expect(dupUnit).toBe(0);
+  });
+});
+
+describe('buy rate limit (production default path)', () => {
+  it('third fast buy with rateLimitBuy 2 -> 429 rate-limited envelope', async () => {
+    const built = buildTestApplication(2);
+    const rlClient = built.client;
+    await rlClient.connect();
+    const rlApp: FastifyInstance = await buildHttpServer(built.application);
+    try {
+      await resetDb(client, application.cache, 5, isoAt(-60_000), isoAt(600_000));
+      built.application.cache.invalidate();
+      const attempts = [];
+      for (const userId of ['rl-one@example.com', 'rl-two@example.com', 'rl-three@example.com']) {
+        attempts.push(
+          await rlApp.inject({
+            method: 'POST',
+            url: '/api/purchase',
+            payload: { userId },
+          }),
+        );
+      }
+      const limited = attempts.filter((r) => r.statusCode === 429);
+      console.log(
+        `[integration] rate-limit: statuses=${JSON.stringify(attempts.map((r) => r.statusCode))} limited=${String(limited.length)} (expect 1)`,
+      );
+      expect(attempts[0]!.statusCode).toBe(201);
+      expect(attempts[1]!.statusCode).toBe(201);
+      expect(limited.length).toBe(1);
+      expect((JSON.parse(limited[0]!.body) as ErrBody).error).toBe('rate-limited');
+    } finally {
+      try {
+        await rlApp.close();
+      } catch {
+        // Already closed; pool shutdown below is what matters.
+      }
+      await built.application.database.close();
+      await rlClient.end();
+    }
   });
 });
 

@@ -102,23 +102,30 @@ standalone against a scratch backend.
 
 ## Post-run summary
 
-`stress/summarize.mjs` turns the raw k6 dump into the committed census:
+`stress/summarize.mjs` turns the raw k6 dump into the committed census.
+HTTP facts are recomputed from the dump; SQL facts are never derivable from
+k6 output, so they must be supplied explicitly — the script exits 1 without
+them and never reuses the previous summary's `sql` block:
 
 ```sh
-node stress/summarize.mjs   # reads stress/results.json (git-ignored), rewrites results-summary.json
+# 1. Run the post-run verification SQL above, collect the counts, then:
+node stress/summarize.mjs \
+  --sql '{"purchases":100,"sold":100,"dup_canonical":0,"dup_unit":0,"distinct_emails":100}'
+# reads stress/results.json (git-ignored), rewrites results-summary.json
 ```
 
 It recomputes the HTTP status census, the `http_req_duration` percentiles per
-status (the latency profile), peak VUs, iterations, and checks totals; SQL
-facts are carried over from the previous census (never derivable from the k6
-dump).
+status (the latency profile), peak VUs, iterations, and checks totals, and
+embeds the explicitly supplied SQL block.
 
 ## Failure demo (why the bypass exists)
 
 With the default limit (`RATE_LIMIT_BUY=10`), 15 rapid `POST /api/purchase`
 with invalid bodies from one IP → `10×400 + 5×429`: the limiter fires before
 validation, so a single-IP 1000-VU run would be 429-polluted and prove
-nothing. Captured in `.omo/evidence/task-14-flash-sale-build-fail.log`.
+nothing. Reproducible locally by booting with the default limit and firing
+15 rapid invalid buys from one IP; the committed proof artifacts are
+`stress/results-summary.json` + `stress/evidence/k6-proof-excerpt.md`.
 
 ## Post-run verification SQL
 
@@ -140,3 +147,11 @@ recomputed from the raw dump by `stress/summarize.mjs`) + log
 output, SQL counts). Raw `stress/results.json` (~470MB) is git-ignored and
 reproducible via the Run section above. Final DB state is the consumed proof itself
 (100/100 sold); do NOT reseed after the proof — reseeding would erase it.
+
+Scenario config of the proof run: **spike only**.
+The `duplicate` scenario did not exist yet. So the committed census
+(100×201 = 100 distinct buyers, every non-201 a post-exhaustion `sold-out`)
+is a pure spike census with no duplicate-scenario traffic mixed in. The
+duplicate-scenario numbers quoted above (10×201 + 65,832×409
+already-purchased) come from a separate later validation on a fresh seed
+(`K6_DUP_ONLY=true`), not from the proof run.
