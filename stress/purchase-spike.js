@@ -133,7 +133,3 @@ export function duplicateLoop() {
       r.status === 201 || (r.status === 409 && error === 'already-purchased'),
   });
 }
-
-export default function spikeLoopAlias() {
-  spikeLoop();
-}

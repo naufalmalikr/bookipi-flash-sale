@@ -17,6 +17,9 @@ interface SseHub {
   heartbeatTimer: ReturnType<typeof setInterval> | undefined;
   unsubscribePurchase: (() => void) | undefined;
   lastStatus: string | undefined;
+  fanOutQueued: boolean;
+  fanOutLoggedEmpty: boolean;
+  loggedErrorClasses: Set<string>;
 }
 
 function createSseHub(): SseHub {
@@ -26,7 +29,16 @@ function createSseHub(): SseHub {
     heartbeatTimer: undefined,
     unsubscribePurchase: undefined,
     lastStatus: undefined,
+    fanOutQueued: false,
+    fanOutLoggedEmpty: false,
+    loggedErrorClasses: new Set<string>(),
   };
+}
+
+function logOnce(hub: SseHub, key: string, logInfo: (msg: string) => void, msg: string): void {
+  if (hub.loggedErrorClasses.has(key)) return;
+  hub.loggedErrorClasses.add(key);
+  logInfo(msg);
 }
 
 async function tickAndFanOut(
@@ -34,23 +46,40 @@ async function tickAndFanOut(
   application: Application,
   logInfo: (msg: string) => void,
 ): Promise<void> {
-  if (hub.clients.size === 0) return;
-  let payload: SaleStatusResponse;
-  try {
-    payload = await application.saleService.buildStatusPayload();
-  } catch {
+  if (hub.clients.size === 0) {
+    if (!hub.fanOutLoggedEmpty) {
+      hub.fanOutLoggedEmpty = true;
+      logInfo('[sse] fan-out skipped: no clients');
+    }
     return;
   }
-  if (hub.lastStatus !== undefined && payload.status !== hub.lastStatus) {
-    logInfo(`[sse] window transition ${hub.lastStatus} -> ${payload.status}`);
-  }
-  hub.lastStatus = payload.status;
-  const frame = formatStatus(payload);
-  for (const res of hub.clients) {
+  hub.fanOutLoggedEmpty = false;
+  if (hub.fanOutQueued) return;
+  hub.fanOutQueued = true;
+  try {
+    let payload: SaleStatusResponse;
     try {
-      res.write(frame);
-    } catch {
+      payload = await application.saleService.buildStatusPayload();
+    } catch (err) {
+      const key = err instanceof Error ? `status:${err.message}` : 'status:unknown';
+      logOnce(hub, key, logInfo, `[sse] buildStatusPayload failed (${key})`);
+      return;
     }
+    if (hub.lastStatus !== undefined && payload.status !== hub.lastStatus) {
+      logInfo(`[sse] window transition ${hub.lastStatus} -> ${payload.status}`);
+    }
+    hub.lastStatus = payload.status;
+    const frame = formatStatus(payload);
+    for (const res of hub.clients) {
+      try {
+        res.write(frame);
+      } catch (err) {
+        const key = err instanceof Error ? `write:${err.message}` : 'write:unknown';
+        logOnce(hub, key, logInfo, `[sse] client write failed (${key})`);
+      }
+    }
+  } finally {
+    hub.fanOutQueued = false;
   }
 }
 

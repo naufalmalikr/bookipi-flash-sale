@@ -52,8 +52,8 @@ k6 VUs share the runner's source IP (single NAT), so a per-IP limit of
 the limiter, not the claim path. The bypass is a boot-time switch, not a
 logic change:
 
-- `backend/src/Config.ts`: `RATE_LIMIT_BUY=0` (or negative) parses to `0` =
-  disabled; positive integers set max req/min/IP; non-numeric → default 10.
+- `backend/src/Config.ts`: `RATE_LIMIT_BUY=0` disables the limiter; positive
+  integers set max req/min/IP; negative or non-numeric warns + falls back to 10.
 - `backend/src/interfaces/http/handlers/api/purchase/index.ts`: when `rateLimitBuy <= 0` the route is
   registered **without** a `config.rateLimit` block; the claim transaction,
   window gate, canonicalization, and error envelope are untouched.

@@ -6,7 +6,7 @@
 import pg from 'pg';
 import type { Pool as PgPool, PoolClient as PgPoolClient } from 'pg';
 import type { Database } from '../index.ts';
-import { isUniqueViolation } from '../index.ts';
+import { isUniqueViolation, isCanonicalUserUniqueViolation, isUnitUniqueViolation } from '../index.ts';
 // computeGate is a pure function (no SQL, no I/O). Importing it here keeps
 // the in-transaction window re-gate byte-identical to the pre-transaction
 // gate and the status endpoint — the rule lives in one place.
@@ -20,7 +20,7 @@ export interface PostgresConfig {
   poolMax: number;
 }
 
-export { isUniqueViolation };
+export { isUniqueViolation, isCanonicalUserUniqueViolation, isUnitUniqueViolation };
 
 export class PostgresDatabase implements Database {
   private pool: PgPool;
@@ -142,10 +142,15 @@ export class PostgresDatabase implements Database {
         return { ok: false, error: 'sold-out' };
       }
       const unitId: number = unitRow.id;
-      await client.query(
-        `UPDATE stock_units SET status = 'sold', sold_at = now() WHERE id = $1`,
+      const updated = await client.query(
+        `UPDATE stock_units SET status = 'sold', sold_at = now()
+          WHERE id = $1 AND status = 'available'`,
         [unitId],
       );
+      if (updated.rowCount !== 1) {
+        await client.query('ROLLBACK');
+        throw new Error('unit-already-claimed');
+      }
       await client.query(
         `INSERT INTO purchases (sale_id, canonical_user_id, unit_id, raw_user_id)
          VALUES ($1, $2, $3, $4)`,
@@ -160,20 +165,16 @@ export class PostgresDatabase implements Database {
         // ROLLBACK failing leaves nothing actionable; fall through.
       }
       if (err instanceof Error && err.message === 'sale-not-active') throw err;
+      if (err instanceof Error && err.message === 'unit-already-claimed') throw err;
+      if (isUnitUniqueViolation(err)) {
+        throw new Error('unit-double-claim');
+      }
+      if (isCanonicalUserUniqueViolation(err)) return { ok: false, error: 'already-purchased' };
       if (isUniqueViolation(err)) return { ok: false, error: 'already-purchased' };
       throw err;
     } finally {
       client?.release();
     }
-  }
-
-  async getSaleWindow(): Promise<{ startsAt: Date; endsAt: Date } | undefined> {
-    const res = await this.pool.query<{ starts_at: Date; ends_at: Date }>(
-      `SELECT starts_at, ends_at FROM sale_config WHERE id = 1`,
-    );
-    const row = res.rows[0];
-    if (row === undefined) return undefined;
-    return { startsAt: row.starts_at, endsAt: row.ends_at };
   }
 
   async ensureSchema(sql: string): Promise<void> {

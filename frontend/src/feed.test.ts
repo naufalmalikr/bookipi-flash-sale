@@ -235,6 +235,20 @@ describe('FeedController', () => {
     expect(h.timers.pending('timeout')[0]?.delay).toBe(2000);
   });
 
+  it('wrong-shape JSON frames are ignored without backoff reset', () => {
+    const h = createHarness();
+    h.sources[0]?.emitRaw(JSON.stringify({ error: 'internal-error', message: 'boom' }));
+    h.sources[0]?.emitRaw(JSON.stringify({ ...makeStatus(), status: 'bogus' }));
+    h.sources[0]?.emitRaw(JSON.stringify({ status: 'active' }));
+    expect(h.states).toEqual([]);
+    expect(h.statuses).toHaveLength(0);
+    h.sources[0]?.emitError();
+    const first = h.timers.pending('timeout')[0];
+    h.timers.fireTimeout(first?.id ?? 0);
+    h.sources[1]?.emitError();
+    expect(h.timers.pending('timeout')[0]?.delay).toBe(2000);
+  });
+
   it('stop() closes the live source, clears poll + reconnect timers, mutes callbacks', () => {
     const h = createHarness();
     h.sources[0]?.emitError(); // polling + reconnect scheduled

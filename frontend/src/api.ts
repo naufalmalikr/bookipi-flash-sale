@@ -44,12 +44,27 @@ function isEnvelope(v: unknown): v is ErrorEnvelope {
   return typeof r['error'] === 'string' && typeof r['message'] === 'string';
 }
 
+export function isStatusPayload(v: unknown): v is StatusPayload {
+  if (typeof v !== 'object' || v === null) return false;
+  const r = v as Record<string, unknown>;
+  if (r['status'] !== 'upcoming' && r['status'] !== 'active' && r['status'] !== 'ended') return false;
+  if (typeof r['stockRemaining'] !== 'number') return false;
+  if (typeof r['totalStock'] !== 'number') return false;
+  if (typeof r['startsAt'] !== 'string') return false;
+  if (typeof r['endsAt'] !== 'string') return false;
+  if (typeof r['serverTime'] !== 'string') return false;
+  return true;
+}
+
 export async function getStatus(): Promise<StatusPayload> {
   const res = await fetch(apiUrl('/api/sale/status'));
-  const body = (await parseJson(res)) as StatusPayload;
+  const body: unknown = await parseJson(res);
   if (!res.ok) {
     const msg = isEnvelope(body) ? `${body.error}: ${body.message}` : `HTTP ${String(res.status)}`;
     throw new Error(msg);
+  }
+  if (!isStatusPayload(body)) {
+    throw new Error('bad-response: malformed status payload');
   }
   return body;
 }
@@ -57,6 +72,12 @@ export async function getStatus(): Promise<StatusPayload> {
 export interface PurchaseOk {
   result: 'purchased';
   unitId: number;
+}
+
+export function isPurchaseOk(v: unknown): v is PurchaseOk {
+  if (typeof v !== 'object' || v === null) return false;
+  const r = v as Record<string, unknown>;
+  return r['result'] === 'purchased' && typeof r['unitId'] === 'number';
 }
 
 /** ok:true with envelope; ok:false carries the server {error,message}. */
@@ -72,7 +93,10 @@ export async function postPurchase(userId: string): Promise<PurchaseOutcome> {
   });
   const body: unknown = await parseJson(res);
   if (res.ok) {
-    return { ok: true, body: body as PurchaseOk };
+    if (!isPurchaseOk(body)) {
+      return { ok: false, status: res.status, error: 'bad-response', message: 'malformed purchase payload' };
+    }
+    return { ok: true, body };
   }
   if (isEnvelope(body)) {
     return { ok: false, status: res.status, error: body.error, message: body.message };
@@ -93,7 +117,10 @@ export async function getPurchase(userId: string): Promise<ConfirmOutcome> {
   const res = await fetch(apiUrl(`/api/purchase/${encodeURIComponent(userId)}`));
   const body: unknown = await parseJson(res);
   if (res.ok) {
-    return { ok: true, body: body as ConfirmOk };
+    if (!isPurchaseOk(body)) {
+      return { ok: false, status: res.status, error: 'bad-response', message: 'malformed purchase payload' };
+    }
+    return { ok: true, body };
   }
   if (isEnvelope(body)) {
     return { ok: false, status: res.status, error: body.error, message: body.message };

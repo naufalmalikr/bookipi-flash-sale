@@ -47,6 +47,27 @@ describe('canonicalizeUserId', () => {
     }
   });
 
+  it('NFKC-normalizes fullwidth spoof separators before validation (m4)', () => {
+    expect(canonicalizeUserId('foo＠gmail.com')).toBe('foo@gmail.com');
+    expect(canonicalizeUserId('foo．bar@gmail.com')).toBe('foobar@gmail.com');
+  });
+
+  it('rejects zero-width chars and overlong input (m4)', () => {
+    expect(() => canonicalizeUserId('fo​o@gmail.com')).toThrowError('invalid-userId');
+    expect(() => canonicalizeUserId(`${'a'.repeat(250)}@example.com`)).toThrowError('invalid-userId');
+    expect(() => canonicalizeUserId('x'.repeat(300))).toThrowError('invalid-userId');
+  });
+
+  it('pins Zod/canonicalize divergence set (Zod 400 first, canonicalize second)', () => {
+    const longLocal = `${'a'.repeat(300)}@example.com`;
+    expect(userIdSchema.safeParse(longLocal).success).toBe(true);
+    expect(() => canonicalizeUserId(longLocal)).toThrowError('invalid-userId');
+    for (const addr of ['f@example.c', 'foo@exam_ple.com', 'user%tag@example.com']) {
+      expect(userIdSchema.safeParse(addr).success).toBe(false);
+      expect(() => canonicalizeUserId(addr)).not.toThrow();
+    }
+  });
+
   it('Zod userIdSchema trims padding, rejects empty/whitespace/non-email (purchase-path 400 source)', () => {
     for (const input of ['', '   ', 'not-an-email']) {
       expect(userIdSchema.safeParse(input).success).toBe(false);
