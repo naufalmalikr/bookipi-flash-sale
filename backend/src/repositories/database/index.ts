@@ -11,7 +11,6 @@ export interface Database {
   countAvailable(saleId: number): Promise<number>;
   getCounts(saleId: number): Promise<StockCounts>;
   findPurchaseByCanonical(saleId: number, canonical: string): Promise<{ unitId: number } | undefined>;
-  hasPriorPurchase(saleId: number, canonical: string): Promise<boolean>;
   claimPurchase(
     saleId: number,
     canonical: string,
