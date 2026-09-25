@@ -12,7 +12,10 @@ export default defineConfig({
     testTimeout: 60000,
     hookTimeout: 60000,
     pool: 'forks',
-    poolOptions: { forks: { singleFork: true } },
+    // Vitest 4 removed `test.poolOptions` (singleFork -> maxWorkers:1 +
+    // isolate:false per the pool-rework migration). Single shared worker,
+    // files serialized below so resetDb cannot interleave across files.
+    isolate: false,
     sequence: { shuffle: false },
     // Four files share one DB (sale_config id=1); run files one at a time
     // so resetDb in one file cannot wipe another file's seed mid-test.

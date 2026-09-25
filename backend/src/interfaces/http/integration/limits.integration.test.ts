@@ -13,6 +13,7 @@ import {
   type PurchaseOk,
   type ErrBody,
 } from './helpers.ts';
+import { SALE_ID } from '../../../entities/index.ts';
 
 let app: FastifyInstance;
 let application: Application;
@@ -91,7 +92,7 @@ describe('rollback proof: aborted claim leaves row available', () => {
     await killer.query('BEGIN');
     const grabbed = await killer.query<{ id: number }>(
       `SELECT id FROM stock_units
-        WHERE sale_id = 1 AND status = 'available'
+        WHERE sale_id = ${String(SALE_ID)} AND status = 'available'
         ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1`,
     );
     const grabbedRow = grabbed.rows[0];

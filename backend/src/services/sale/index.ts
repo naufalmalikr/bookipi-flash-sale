@@ -21,8 +21,7 @@ import type {
   SaleStatus,
   GetStatusOutput,
 } from '../../models/sale/sale.contract.ts';
-
-const SALE_ID = 1;
+import { SALE_ID } from '../../entities/index.ts';
 
 export class SaleServiceImpl implements SaleService {
   private database: Database;

@@ -11,6 +11,7 @@ import {
   type PurchaseOk,
   type ErrBody,
 } from './helpers.ts';
+import { SALE_ID } from '../../../entities/index.ts';
 
 let app: FastifyInstance;
 let application: Application;
@@ -78,7 +79,7 @@ describe('sold-out path', () => {
     expect((JSON.parse(loser.body) as ErrBody).error).toBe('sold-out');
     const sold = await countOf(
       client,
-      `SELECT COUNT(*)::text AS n FROM stock_units WHERE sale_id = 1 AND status = 'sold'`,
+      `SELECT COUNT(*)::text AS n FROM stock_units WHERE sale_id = ${String(SALE_ID)} AND status = 'sold'`,
     );
     expect(sold).toBe(1);
   });
@@ -103,7 +104,7 @@ describe('same-user concurrent duplicate at exact exhaustion', () => {
     const rejected = attempts.filter((r) => r.statusCode === 409);
     const sold = await countOf(
       client,
-      `SELECT COUNT(*)::text AS n FROM stock_units WHERE sale_id = 1 AND status = 'sold'`,
+      `SELECT COUNT(*)::text AS n FROM stock_units WHERE sale_id = ${String(SALE_ID)} AND status = 'sold'`,
     );
     const labels = rejected.map((r) => (JSON.parse(r.body) as ErrBody).error);
     console.log(
@@ -154,11 +155,11 @@ describe('same-user concurrent duplicate with stock remaining', () => {
     );
     const sold = await countOf(
       client,
-      `SELECT COUNT(*)::text AS n FROM stock_units WHERE sale_id = 1 AND status = 'sold'`,
+      `SELECT COUNT(*)::text AS n FROM stock_units WHERE sale_id = ${String(SALE_ID)} AND status = 'sold'`,
     );
     const bought = await countOf(
       client,
-      `SELECT COUNT(*)::text AS n FROM purchases WHERE sale_id = 1`,
+      `SELECT COUNT(*)::text AS n FROM purchases WHERE sale_id = ${String(SALE_ID)}`,
     );
     console.log(
       `[integration] 23505-race: won=${String(won.length)} dupes=${String(dupes.length)} sold=${String(sold)} purchases=${String(bought)} (expect 1/1/1/1)`,
@@ -188,22 +189,22 @@ describe('exact-5 under 50 parallel callers', () => {
     }
     const sold = await countOf(
       client,
-      `SELECT COUNT(*)::text AS n FROM stock_units WHERE sale_id = 1 AND status = 'sold'`,
+      `SELECT COUNT(*)::text AS n FROM stock_units WHERE sale_id = ${String(SALE_ID)} AND status = 'sold'`,
     );
     const bought = await countOf(
       client,
-      `SELECT COUNT(*)::text AS n FROM purchases WHERE sale_id = 1`,
+      `SELECT COUNT(*)::text AS n FROM purchases WHERE sale_id = ${String(SALE_ID)}`,
     );
     const dupCanonical = await countOf(
       client,
       `SELECT COUNT(*)::text AS n FROM
-        (SELECT canonical_user_id FROM purchases WHERE sale_id = 1
+        (SELECT canonical_user_id FROM purchases WHERE sale_id = ${String(SALE_ID)}
          GROUP BY canonical_user_id HAVING COUNT(*) > 1) AS d`,
     );
     const dupUnit = await countOf(
       client,
       `SELECT COUNT(*)::text AS n FROM
-        (SELECT unit_id FROM purchases WHERE sale_id = 1
+        (SELECT unit_id FROM purchases WHERE sale_id = ${String(SALE_ID)}
          GROUP BY unit_id HAVING COUNT(*) > 1) AS d`,
     );
     console.log(

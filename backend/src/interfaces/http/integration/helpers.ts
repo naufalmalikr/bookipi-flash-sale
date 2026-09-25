@@ -5,6 +5,7 @@ import { InMemoryCache } from '../../../repositories/cache/in-memory/index.ts';
 import { ConsoleLogger } from '../../../repositories/logger/console/index.ts';
 import { SaleServiceImpl } from '../../../services/sale/index.ts';
 import { PurchaseServiceImpl } from '../../../services/purchase/index.ts';
+import { SALE_ID } from '../../../entities/index.ts';
 import { loadConfig } from '../../../Config.ts';
 
 export const CONNECTION_STRING: string = loadConfig().databaseUrl;
@@ -99,19 +100,19 @@ export async function resetDb(
   await client.query(`DELETE FROM stock_units`);
   await client.query(
     `INSERT INTO sale_config (id, product_name, stock_qty, starts_at, ends_at)
-     VALUES (1, 'Flash Widget', $1, $2::timestamptz, $3::timestamptz)
+     VALUES ($1, 'Flash Widget', $2, $3::timestamptz, $4::timestamptz)
      ON CONFLICT (id) DO UPDATE SET
        product_name = EXCLUDED.product_name,
        stock_qty = EXCLUDED.stock_qty,
        starts_at = EXCLUDED.starts_at,
        ends_at = EXCLUDED.ends_at`,
-    [stockQty, startsAt, endsAt],
+    [SALE_ID, stockQty, startsAt, endsAt],
   );
   if (stockQty > 0) {
     await client.query(
       `INSERT INTO stock_units (sale_id, status)
-       SELECT 1, 'available' FROM generate_series(1, $1) AS g`,
-      [stockQty],
+       SELECT $1, 'available' FROM generate_series(1, $2) AS g`,
+      [SALE_ID, stockQty],
     );
   }
   cache.invalidate();

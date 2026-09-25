@@ -31,11 +31,9 @@ import type {
   PurchaseCommittedEvent,
   PurchaseCommittedListener,
 } from '../../models/purchase/purchase.contract.ts';
+import { SALE_ID } from '../../entities/index.ts';
 
 const GMAIL_DOMAINS = new Set(['gmail.com', 'googlemail.com']);
-
-/** Sale id is always 1: single-sale take-home, no multi-sale routing. */
-const SALE_ID = 1;
 
 /**
  * Maximum raw input length: RFC 5321 caps the email path at 254 octets.

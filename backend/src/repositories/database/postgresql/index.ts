@@ -11,6 +11,7 @@ import { isUniqueViolation, isCanonicalUserUniqueViolation, isUnitUniqueViolatio
 // the in-transaction window re-gate byte-identical to the pre-transaction
 // gate and the status endpoint — the rule lives in one place.
 import { computeGate } from '../../../utilities/index.ts';
+import { SALE_ID } from '../../../entities/index.ts';
 
 // ../../Config.js does not exist yet — local shape mirrors
 // AppConfig{databaseUrl:string, poolMax:number}. Config is injected via
@@ -44,7 +45,8 @@ export class PostgresDatabase implements Database {
       ends_at: Date;
     }>(
       `SELECT product_name, stock_qty, starts_at, ends_at
-       FROM sale_config WHERE id = 1`,
+       FROM sale_config WHERE id = $1`,
+      [SALE_ID],
     );
     const row = res.rows[0];
     if (row === undefined) return undefined;
@@ -184,13 +186,13 @@ export class PostgresDatabase implements Database {
   async upsertSaleConfig(product: string, qty: number, start: string, end: string): Promise<void> {
     await this.pool.query(
       `INSERT INTO sale_config (id, product_name, stock_qty, starts_at, ends_at)
-       VALUES (1, $1, $2, $3::timestamptz, $4::timestamptz)
+       VALUES ($1, $2, $3, $4::timestamptz, $5::timestamptz)
        ON CONFLICT (id) DO UPDATE SET
          product_name = EXCLUDED.product_name,
          stock_qty = EXCLUDED.stock_qty,
          starts_at = EXCLUDED.starts_at,
          ends_at = EXCLUDED.ends_at`,
-      [product, qty, start, end],
+      [SALE_ID, product, qty, start, end],
     );
   }
 
